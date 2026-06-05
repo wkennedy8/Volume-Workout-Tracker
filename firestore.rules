@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Shared exercise library — readable by any signed-in user, written only
+    // by the Admin SDK (migration scripts). Client writes are denied.
+    match /exercises/{exerciseId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // A user's own profile document.
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // On create, isPro must be false (or absent).
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.get('isPro', false) == false;
+
+      // On update, the client may change anything EXCEPT isPro, which must
+      // stay equal to its existing value. Only the Admin SDK can flip it.
+      allow update: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.get('isPro', false)
+                       == resource.data.get('isPro', false);
+
+      allow delete: if request.auth != null && request.auth.uid == uid;
+
+      // All subcollections (sessions, programs, cardio, weights,
+      // progressPhotos, exerciseDefaults, preferences, settings,
+      // programProgress, scheduleOverrides, …) belong to the owner.
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+  }
+}

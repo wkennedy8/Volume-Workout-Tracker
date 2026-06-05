@@ -1,4 +1,5 @@
 // import AuthGate from '@/components/AuthGate';
+import SplashAnimation from '@/components/SplashAnimation';
 import { OnboardingProvider } from '@/context/OnboardingContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -17,7 +18,8 @@ import {
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { AuthProvider } from '../context/AuthContext';
@@ -31,6 +33,7 @@ export const unstable_settings = {
 
 export default function RootLayout() {
 	const colorScheme = useColorScheme();
+	const [animationDone, setAnimationDone] = useState(false);
 
 	const [fontsLoaded] = useFonts({
 		Quicksand_300Light,
@@ -73,6 +76,12 @@ export default function RootLayout() {
 						</Stack>
 					</OnboardingProvider>
 				</AuthProvider>
+
+				{!animationDone && (
+					<View style={StyleSheet.absoluteFill}>
+						<SplashAnimation onComplete={() => setAnimationDone(true)} />
+					</View>
+				)}
 			</GestureHandlerRootView>
 		</ThemeProvider>
 	);
