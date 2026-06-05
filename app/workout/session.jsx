@@ -7,10 +7,6 @@ import SessionHeader from '@/components/workout/session/SessionHeader'
 import { useAuth } from '@/context/AuthContext'
 import { getSmartDefaultWeight } from '@/controllers/exerciseDefaultsController'
 import {
-	applyWeeklyProgression,
-	getProgramWeek
-} from '@/controllers/programProgressController'
-import {
 	buildEmptySession,
 	upsertSession as firestoreUpsertSession,
 	getInProgressSessionForDay,
@@ -18,17 +14,14 @@ import {
 	getSessionById,
 	markSessionCompleted
 } from '@/controllers/sessionController'
-import {
-	acknowledgeWeightSuggestion,
-	getWeightSuggestion
-} from '@/controllers/weightSuggestionsController'
 import { formatLocalDateKey } from '@/utils/dateUtils'
 import {
 	isExerciseCompleted,
 	validateSetBeforeSave
 } from '@/utils/sessionUtils'
 import { playChime } from '@/utils/timerUtils'
-import { PLAN } from '@/utils/workoutPlan'
+import { getProgramById } from '@/controllers/programController'
+import { getTargetForWeek } from '@/utils/progressionEngine'
 import { normalizeExerciseKey, normalizeNumberText } from '@/utils/workoutUtils'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
@@ -54,16 +47,7 @@ export default function WorkoutSessionScreen() {
 	const { user } = useAuth()
 	const params = useLocalSearchParams()
 	const templateId = String(params.templateId || 'push')
-
-	// Find which plan this workout belongs to
-	const { template: rawTemplate, planId } = useMemo(() => {
-		for (const [pId, plan] of Object.entries(PLAN)) {
-			if (plan.workouts && plan.workouts[templateId]) {
-				return { template: plan.workouts[templateId], planId: pId }
-			}
-		}
-		return { template: PLAN.ppl?.workouts?.push || null, planId: 'ppl' }
-	}, [templateId])
+	const programId = params.programId ? String(params.programId) : null
 
 	const today = useMemo(() => new Date(), [])
 	const dateKey = useMemo(() => formatLocalDateKey(today), [today])
@@ -78,7 +62,6 @@ export default function WorkoutSessionScreen() {
 	const [currentWeek, setCurrentWeek] = useState(1)
 	const [template, setTemplate] = useState(null)
 	const [previousSessionData, setPreviousSessionData] = useState({})
-	const [weightSuggestions, setWeightSuggestions] = useState({})
 	const [finishing, setFinishing] = useState(false)
 
 	// Rest timer state
@@ -98,21 +81,50 @@ export default function WorkoutSessionScreen() {
 	// EFFECTS
 	// ============================================================================
 
-	// Load program week and apply progression
+	// Load template from the active custom program (Firestore)
 	useEffect(() => {
-		if (!user?.uid || !rawTemplate || !planId) return
+		if (!user?.uid || !programId) return
+
 		;(async () => {
 			try {
-				const week = await getProgramWeek(user.uid, planId)
+				const prog = await getProgramById(user.uid, programId)
+				if (!prog) {
+					console.warn('Program not found for session:', programId)
+					return
+				}
+				const week = prog.currentWeek ?? 1
 				setCurrentWeek(week)
-				const progressedTemplate = applyWeeklyProgression(rawTemplate, week)
-				setTemplate(progressedTemplate)
+
+				const day = prog.days?.find((d) => d.id === templateId)
+				if (!day) {
+					console.warn('Day not found in program:', templateId)
+					return
+				}
+
+				const exercises = (day.exercises ?? []).map((ex) => {
+					const target = getTargetForWeek(ex, week, prog.cycleLength ?? 8)
+					return {
+						name: ex.name,
+						sets: String(target.sets),
+						reps: target.reps,
+						note: '',
+						muscleGroup: ex.muscleGroup ?? '',
+						isCompound: ex.isCompound ?? false
+					}
+				})
+
+				const dayLabel = day.label ?? day.id
+				setTemplate({
+					id: day.id,
+					title: `${dayLabel} Day`,
+					tag: dayLabel,
+					exercises
+				})
 			} catch (error) {
-				console.error('Error loading program week:', error)
-				setTemplate(rawTemplate)
+				console.error('Error loading program template:', error)
 			}
 		})()
-	}, [user?.uid, rawTemplate, planId])
+	}, [user?.uid, programId, templateId])
 
 	// Handle app state changes (background/foreground)
 	useEffect(() => {
@@ -197,6 +209,8 @@ export default function WorkoutSessionScreen() {
 
 					const normalized = {
 						...found,
+						title: template.title,
+						tag: template.tag,
 						exercises: found.exercises.map((ex, idx) => ({
 							expanded: idx === 0,
 							...ex,
@@ -219,6 +233,8 @@ export default function WorkoutSessionScreen() {
 					if (found) {
 						const normalized = {
 							...found,
+							title: template.title,
+							tag: template.tag,
 							exercises: found.exercises.map((ex, idx) => ({
 								expanded: idx === 0,
 								...ex,
@@ -245,6 +261,8 @@ export default function WorkoutSessionScreen() {
 				if (existing) {
 					const normalized = {
 						...existing,
+						title: template.title,
+						tag: template.tag,
 						exercises: existing.exercises.map((ex, idx) => ({
 							expanded: idx === 0,
 							...ex,
@@ -301,19 +319,10 @@ export default function WorkoutSessionScreen() {
 				})
 				created.exercises[0].expanded = true
 				created.programWeek = currentWeek
+				if (programId) created.programId = programId
 
 				setSession(created)
 				await firestoreUpsertSession(user.uid, created)
-
-				// Load cross-session weight suggestions
-				const suggestions = {}
-				await Promise.all(
-					created.exercises.map(async (ex) => {
-						const suggestion = await getWeightSuggestion(user.uid, ex.name)
-						if (suggestion) suggestions[ex.name] = suggestion
-					})
-				)
-				setWeightSuggestions(suggestions)
 			} catch (e) {
 				console.warn(e)
 				Alert.alert('Error', 'Could not initialize workout session.')
@@ -521,6 +530,9 @@ export default function WorkoutSessionScreen() {
 						name: alternative.name,
 						originalName: originalName,
 						isSwapped: true,
+						// Keep muscle group/type in sync so future swaps stay scoped
+						muscleGroup: alternative.muscleGroup ?? ex.muscleGroup ?? '',
+						isCompound: alternative.isCompound ?? ex.isCompound ?? false,
 						// Apply the looked-up weight to all unsaved sets
 						sets: ex.sets.map((s) => ({
 							...s,
@@ -556,13 +568,15 @@ export default function WorkoutSessionScreen() {
 		}
 
 		const defaultWeight = smartWeight != null ? String(smartWeight) : ''
-		const numSets = libraryExercise.defaultSets ?? 3
+		const numSets = 3
 
 		const newExercise = {
 			name: libraryExercise.name,
 			targetSets: String(numSets),
-			targetReps: libraryExercise.defaultReps ?? '10-12',
+			targetReps: '10-12',
 			note: '',
+			muscleGroup: libraryExercise.muscleGroup ?? '',
+			isCompound: libraryExercise.isCompound ?? false,
 			isCustomAdded: true,
 			expanded: true,
 			sets: Array.from({ length: numSets }, (_, i) => ({
@@ -718,15 +732,6 @@ export default function WorkoutSessionScreen() {
 				}
 			}
 		])
-	}
-
-	async function handleAcknowledgeSuggestion(exerciseName) {
-		setWeightSuggestions((prev) => {
-			const next = { ...prev }
-			delete next[exerciseName]
-			return next
-		})
-		if (user?.uid) await acknowledgeWeightSuggestion(user.uid, exerciseName)
 	}
 
 	function getPreviousSet(exerciseName, setIndex) {
@@ -905,8 +910,6 @@ export default function WorkoutSessionScreen() {
 							addSet={addSet}
 							normalizeNumberText={normalizeNumberText}
 							getPreviousSet={getPreviousSet}
-							weightSuggestion={weightSuggestions[item.name] ?? null}
-							onAcknowledgeSuggestion={handleAcknowledgeSuggestion}
 						/>
 					)}
 					ListFooterComponent={
@@ -932,7 +935,6 @@ export default function WorkoutSessionScreen() {
 							? session.exercises[swapExerciseIndex]
 							: null
 					}
-					templateId={template.id}
 					onSwap={handleSwapExercise}
 				/>
 

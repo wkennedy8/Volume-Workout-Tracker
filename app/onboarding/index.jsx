@@ -1,6 +1,5 @@
 import EmailStep from '@/components/onboarding/EmailStep';
 import GoalStep from '@/components/onboarding/GoalStep';
-import MacrosStep from '@/components/onboarding/MacrosStep';
 import NameStep from '@/components/onboarding/NameStep';
 import PhotoStep from '@/components/onboarding/PhotoStep';
 import ProgramStep from '@/components/onboarding/ProgramStep';
@@ -21,7 +20,6 @@ export default function OnboardingScreen() {
 		{ component: EmailStep, name: 'email' },
 		{ component: GoalStep, name: 'goal' },
 		{ component: WeightStep, name: 'weight' },
-		{ component: MacrosStep, name: 'macros' },
 		{ component: ProgramStep, name: 'program' },
 		{ component: PhotoStep, name: 'photo' }
 	];
@@ -42,8 +40,7 @@ export default function OnboardingScreen() {
 	}
 
 	function handleComplete() {
-		// This will be called from PhotoStep
-		router.replace('/(tabs)');
+		router.replace('/program-builder');
 	}
 
 	return (

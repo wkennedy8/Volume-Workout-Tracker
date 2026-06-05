@@ -12,12 +12,12 @@ export default function TabLayout() {
 				options={{ title: 'Home', tabBarLabel: 'Home' }}
 			/>
 			<Tabs.Screen
-				name='calendar'
-				options={{ title: 'Calendar', tabBarLabel: 'Calendar' }}
-			/>
-			<Tabs.Screen
 				name='workout'
 				options={{ title: 'Workout', tabBarLabel: 'Workout' }}
+			/>
+			<Tabs.Screen
+				name='calendar'
+				options={{ title: 'Calendar', tabBarLabel: 'Calendar' }}
 			/>
 			<Tabs.Screen
 				name='analytics'

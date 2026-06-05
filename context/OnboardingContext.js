@@ -8,9 +8,6 @@ export function OnboardingProvider({ children }) {
 		email: '',
 		goal: null,
 		currentWeight: null,
-		protein: null,
-		carbs: null,
-		fats: null,
 		selectedPlanId: null,
 		profilePhotoUri: null
 	});
@@ -25,9 +22,6 @@ export function OnboardingProvider({ children }) {
 			email: '',
 			goal: null,
 			currentWeight: null,
-			protein: null,
-			carbs: null,
-			fats: null,
 			selectedPlanId: null,
 			profilePhotoUri: null
 		});

@@ -1,7 +1,8 @@
-import exerciseLibrary from '@/utils/exerciseLibrary.json'
+import { getExercises } from '@/controllers/exerciseController'
 import { Ionicons } from '@expo/vector-icons'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
+	ActivityIndicator,
 	Modal,
 	ScrollView,
 	StyleSheet,
@@ -12,11 +13,43 @@ import {
 } from 'react-native'
 import { FontFamily } from '../constants/fonts'
 
-const { exercises, muscleGroups } = exerciseLibrary
+const MUSCLE_GROUP_ORDER = [
+	'Chest',
+	'Back',
+	'Shoulders',
+	'Biceps',
+	'Triceps',
+	'Legs',
+	'Glutes',
+	'Core'
+]
 
 export default function AddExerciseModal({ visible, onClose, onAdd }) {
+	const [exercises, setExercises] = useState([])
+	const [loading, setLoading] = useState(true)
 	const [search, setSearch] = useState('')
 	const [selectedGroup, setSelectedGroup] = useState('All')
+
+	// Load the exercise library from Firestore when opened
+	useEffect(() => {
+		if (!visible) return
+		setLoading(true)
+		setSearch('')
+		setSelectedGroup('All')
+		getExercises()
+			.then(setExercises)
+			.catch((e) => {
+				console.warn('Failed to load exercise library:', e)
+				setExercises([])
+			})
+			.finally(() => setLoading(false))
+	}, [visible])
+
+	// Build the muscle-group filter list from what actually loaded
+	const muscleGroups = useMemo(() => {
+		const present = new Set(exercises.map((ex) => ex.muscleGroup))
+		return MUSCLE_GROUP_ORDER.filter((g) => present.has(g))
+	}, [exercises])
 
 	const filtered = useMemo(() => {
 		const query = search.trim().toLowerCase()
@@ -27,7 +60,7 @@ export default function AddExerciseModal({ visible, onClose, onAdd }) {
 				query === '' || ex.name.toLowerCase().includes(query)
 			return matchesGroup && matchesSearch
 		})
-	}, [search, selectedGroup])
+	}, [exercises, search, selectedGroup])
 
 	function handleAdd(exercise) {
 		onAdd(exercise)
@@ -165,10 +198,17 @@ export default function AddExerciseModal({ visible, onClose, onAdd }) {
 
 					{/* Results count */}
 					<Text style={styles.resultsCount}>
-						{filtered.length} exercise{filtered.length !== 1 ? 's' : ''}
+						{loading
+							? 'Loading…'
+							: `${filtered.length} exercise${filtered.length !== 1 ? 's' : ''}`}
 					</Text>
 
 					{/* Exercise List */}
+					{loading ? (
+						<View style={styles.loadingWrap}>
+							<ActivityIndicator size='large' color='#AFFF2B' />
+						</View>
+					) : (
 					<ScrollView
 						style={styles.list}
 						showsVerticalScrollIndicator={false}
@@ -227,6 +267,7 @@ export default function AddExerciseModal({ visible, onClose, onAdd }) {
 							})
 						)}
 					</ScrollView>
+					)}
 				</View>
 			</View>
 		</Modal>
@@ -327,6 +368,11 @@ const styles = StyleSheet.create({
 	},
 	list: {
 		maxHeight: 420
+	},
+	loadingWrap: {
+		height: 420,
+		alignItems: 'center',
+		justifyContent: 'center'
 	},
 	exerciseRow: {
 		flexDirection: 'row',

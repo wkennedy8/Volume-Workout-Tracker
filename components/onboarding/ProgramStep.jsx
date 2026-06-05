@@ -1,5 +1,4 @@
 import { useOnboarding } from '@/context/OnboardingContext';
-import { getDefaultPlans } from '@/controllers/plansController';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
@@ -10,7 +9,16 @@ import {
 	View
 } from 'react-native';
 import { FontFamily } from '../../constants/fonts';
+import { SPLIT_CONFIG } from '../../utils/splitConfig';
 import ProgressBar from './ProgressBar';
+
+const SPLITS = Object.values(SPLIT_CONFIG);
+
+const SPLIT_ICONS = {
+	ppl: 'shuffle-outline',
+	fullbody: 'body-outline',
+	brosplit: 'barbell-outline'
+};
 
 export default function ProgramStep({
 	onNext,
@@ -20,16 +28,14 @@ export default function ProgramStep({
 	canGoBack
 }) {
 	const { data, updateData } = useOnboarding();
-	const [selectedPlanId, setSelectedPlanId] = useState(data.selectedPlanId);
-	const plans = getDefaultPlans();
+	const [selectedSplitId, setSelectedSplitId] = useState(data.selectedPlanId);
 
 	function handleContinue() {
-		if (!selectedPlanId) {
+		if (!selectedSplitId) {
 			alert('Please select a program');
 			return;
 		}
-
-		updateData('selectedPlanId', selectedPlanId);
+		updateData('selectedPlanId', selectedSplitId);
 		onNext();
 	}
 
@@ -40,84 +46,83 @@ export default function ProgramStep({
 				contentContainerStyle={styles.content}
 				showsVerticalScrollIndicator={false}
 			>
-				{/* Back Button */}
 				{canGoBack && (
 					<TouchableOpacity style={styles.backButton} onPress={onBack}>
 						<Ionicons name='chevron-back' size={28} color='#AFFF2B' />
 					</TouchableOpacity>
 				)}
 
-				{/* Progress */}
 				<ProgressBar currentStep={currentStep} totalSteps={totalSteps} />
 
-				{/* Header */}
 				<View style={styles.header}>
-					<Text style={styles.title}>Choose your program</Text>
+					<Text style={styles.title}>Choose your split</Text>
 					<Text style={styles.subtitle}>
-						Select a workout split that fits your schedule
+						You'll build your exact program after setup
 					</Text>
 				</View>
 
-				{/* Program Options */}
-				<View style={styles.programOptions}>
-					{plans.map((plan) => (
-						<TouchableOpacity
-							key={plan.id}
-							style={[
-								styles.programOption,
-								selectedPlanId === plan.id && styles.programOptionActive
-							]}
-							onPress={() => setSelectedPlanId(plan.id)}
-							activeOpacity={0.7}
-						>
-							<View style={styles.programHeader}>
-								<View style={styles.programTitleRow}>
-									<Ionicons
-										name='barbell-outline'
-										size={24}
-										color={selectedPlanId === plan.id ? '#000000' : '#AFFF2B'}
-									/>
-									<Text
-										style={[
-											styles.programTitle,
-											selectedPlanId === plan.id && styles.programTitleActive
-										]}
-									>
-										{plan.title}
-									</Text>
-								</View>
-								{selectedPlanId === plan.id && (
-									<Ionicons name='checkmark-circle' size={24} color='#000000' />
-								)}
-							</View>
-							<Text
-								style={[
-									styles.programDescription,
-									selectedPlanId === plan.id && styles.programDescriptionActive
-								]}
+				<View style={styles.options}>
+					{SPLITS.map((split) => {
+						const active = selectedSplitId === split.id;
+						return (
+							<TouchableOpacity
+								key={split.id}
+								style={[styles.option, active && styles.optionActive]}
+								onPress={() => setSelectedSplitId(split.id)}
+								activeOpacity={0.7}
 							>
-								{plan.description}
-							</Text>
-							<View style={styles.programMeta}>
+								<View style={styles.optionHeader}>
+									<View style={styles.optionTitleRow}>
+										<Ionicons
+											name={SPLIT_ICONS[split.id]}
+											size={24}
+											color={active ? '#000000' : '#AFFF2B'}
+										/>
+										<Text
+											style={[
+												styles.optionTitle,
+												active && styles.optionTitleActive
+											]}
+										>
+											{split.label}
+										</Text>
+									</View>
+									{active && (
+										<Ionicons
+											name='checkmark-circle'
+											size={24}
+											color='#000000'
+										/>
+									)}
+								</View>
+
 								<Text
 									style={[
-										styles.programMetaText,
-										selectedPlanId === plan.id && styles.programMetaTextActive
+										styles.optionDescription,
+										active && styles.optionDescriptionActive
 									]}
 								>
-									{Object.keys(plan.workouts).length} workouts per week
+									{split.description}
 								</Text>
-							</View>
-						</TouchableOpacity>
-					))}
+
+								<Text
+									style={[
+										styles.optionMeta,
+										active && styles.optionMetaActive
+									]}
+								>
+									Suggested {split.suggestedDaysPerWeek} days/week
+								</Text>
+							</TouchableOpacity>
+						);
+					})}
 				</View>
 			</ScrollView>
 
-			{/* Bottom Button */}
 			<TouchableOpacity
-				style={[styles.button, !selectedPlanId && styles.buttonDisabled]}
+				style={[styles.button, !selectedSplitId && styles.buttonDisabled]}
 				onPress={handleContinue}
-				disabled={!selectedPlanId}
+				disabled={!selectedSplitId}
 				activeOpacity={0.9}
 			>
 				<Text style={styles.buttonText}>Continue</Text>
@@ -140,9 +145,7 @@ const styles = StyleSheet.create({
 		marginBottom: 12
 	},
 
-	header: {
-		marginBottom: 32
-	},
+	header: { marginBottom: 32 },
 	title: {
 		fontSize: 32,
 		fontFamily: FontFamily.black,
@@ -155,65 +158,50 @@ const styles = StyleSheet.create({
 		color: '#999999'
 	},
 
-	programOptions: {
-		gap: 12
-	},
-	programOption: {
+	options: { gap: 12 },
+	option: {
 		padding: 20,
 		borderRadius: 16,
 		borderWidth: 2,
 		borderColor: '#333333',
 		backgroundColor: '#1A1A1A'
 	},
-	programOptionActive: {
+	optionActive: {
 		backgroundColor: '#AFFF2B',
 		borderColor: '#AFFF2B'
 	},
-	programHeader: {
+	optionHeader: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
-		marginBottom: 12
+		marginBottom: 10
 	},
-	programTitleRow: {
+	optionTitleRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 12,
 		flex: 1
 	},
-	programTitle: {
+	optionTitle: {
 		fontSize: 18,
 		fontFamily: FontFamily.black,
 		color: '#FFFFFF'
 	},
-	programTitleActive: {
-		color: '#000000'
-	},
-	programDescription: {
+	optionTitleActive: { color: '#000000' },
+	optionDescription: {
 		fontSize: 14,
 		fontWeight: '700',
 		color: '#999999',
-		marginBottom: 12,
-		lineHeight: 20
+		lineHeight: 20,
+		marginBottom: 10
 	},
-	programDescriptionActive: {
-		color: '#000000',
-		opacity: 0.7
-	},
-	programMeta: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 8
-	},
-	programMetaText: {
+	optionDescriptionActive: { color: '#000000', opacity: 0.7 },
+	optionMeta: {
 		fontSize: 12,
 		fontWeight: '800',
 		color: '#666666'
 	},
-	programMetaTextActive: {
-		color: '#000000',
-		opacity: 0.6
-	},
+	optionMetaActive: { color: '#000000', opacity: 0.6 },
 
 	button: {
 		position: 'absolute',

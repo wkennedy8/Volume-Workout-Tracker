@@ -108,7 +108,8 @@ export default function WorkoutDetailsScreen() {
 			params: {
 				mode: 'edit',
 				sessionId: session.id,
-				templateId: session.templateId
+				templateId: session.templateId,
+				programId: session.programId ?? ''
 			}
 		});
 	}

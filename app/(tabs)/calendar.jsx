@@ -1,8 +1,12 @@
 import { useAuth } from '@/context/AuthContext'
-import { getUserWorkoutPlan } from '@/controllers/plansController'
+import { getActiveProgram } from '@/controllers/programController'
 import { db } from '@/lib/firebase'
 import { formatLocalDateKey } from '@/utils/dateUtils'
-import { getWorkoutForDateFromPlan, tagColor } from '@/utils/workoutPlan'
+import {
+	getTodayWorkoutFromProgram,
+	isTodayTrainingDay
+} from '@/utils/programSchedule'
+import { tagColor } from '@/utils/workoutUtils'
 import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
@@ -56,7 +60,7 @@ export default function CalendarScreen() {
 
 	const [monthOffset, setMonthOffset] = useState(0)
 	const [sessions, setSessions] = useState({})
-	const [plan, setPlan] = useState(null)
+	const [program, setProgram] = useState(null)
 	const [loading, setLoading] = useState(true)
 	const [selectedDay, setSelectedDay] = useState(null)
 	const [sheetVisible, setSheetVisible] = useState(false)
@@ -91,11 +95,11 @@ export default function CalendarScreen() {
 	async function load() {
 		try {
 			setLoading(true)
-			const [loadedPlan, sessionsMap] = await Promise.all([
-				getUserWorkoutPlan(user.uid),
+			const [activeProgram, sessionsMap] = await Promise.all([
+				getActiveProgram(user.uid),
 				fetchSessions()
 			])
-			setPlan(loadedPlan)
+			setProgram(activeProgram)
 			setSessions(sessionsMap)
 		} catch (e) {
 			console.warn('Calendar load error:', e)
@@ -130,6 +134,11 @@ export default function CalendarScreen() {
 		return 'future'
 	}
 
+	function isScheduledTrainingDay(date) {
+		if (!program) return false
+		return isTodayTrainingDay(program.daysPerWeek ?? 3, date)
+	}
+
 	function handleDayPress(date) {
 		const dateKey = formatLocalDateKey(date)
 		const session = sessions[dateKey]
@@ -139,7 +148,7 @@ export default function CalendarScreen() {
 			return
 		}
 
-		const planned = plan ? getWorkoutForDateFromPlan(date, plan) : null
+		const planned = program ? getTodayWorkoutFromProgram(program, date) : null
 		setSelectedDay({ date, dateKey, session, planned })
 		setSheetVisible(true)
 	}
@@ -174,6 +183,23 @@ export default function CalendarScreen() {
 
 			{loading ? (
 				<ActivityIndicator color='#AFFF2B' style={{ marginTop: 60 }} />
+			) : !program ? (
+				<View style={styles.emptyState}>
+					<Ionicons name='calendar-outline' size={56} color='#333333' />
+					<Text style={styles.emptyTitle}>Nothing scheduled yet</Text>
+					<Text style={styles.emptySubtitle}>
+						Build a program to map your training days onto the calendar and
+						track your progress over time.
+					</Text>
+					<TouchableOpacity
+						style={styles.emptyButton}
+						onPress={() => router.push('/program-builder')}
+						activeOpacity={0.85}
+					>
+						<Text style={styles.emptyButtonText}>Build a Program</Text>
+						<Ionicons name='arrow-forward' size={16} color='#000000' />
+					</TouchableOpacity>
+				</View>
 			) : (
 				<View style={styles.grid}>
 					{rows.map((row, ri) => (
@@ -185,6 +211,10 @@ export default function CalendarScreen() {
 								const isToday = dateKey === todayKey
 								const isCompleted = status === 'completed'
 								const isInProgress = status === 'in_progress'
+								const showScheduledDot =
+									!isCompleted &&
+									!isInProgress &&
+									isScheduledTrainingDay(date)
 
 								return (
 									<TouchableOpacity
@@ -219,6 +249,11 @@ export default function CalendarScreen() {
 												{date.getDate()}
 											</Text>
 										</View>
+										<View style={styles.dotSlot}>
+											{showScheduledDot && (
+												<View style={styles.scheduledDot} />
+											)}
+										</View>
 									</TouchableOpacity>
 								)
 							})}
@@ -227,6 +262,7 @@ export default function CalendarScreen() {
 				</View>
 			)}
 
+			{program && (
 			<View style={styles.legend}>
 				<View style={styles.legendItem}>
 					<View style={[styles.legendDot, { backgroundColor: '#AFFF2B' }]} />
@@ -240,7 +276,12 @@ export default function CalendarScreen() {
 					<View style={[styles.legendDot, styles.legendDotToday]} />
 					<Text style={styles.legendLabel}>Today</Text>
 				</View>
+				<View style={styles.legendItem}>
+					<View style={[styles.legendDot, { backgroundColor: '#666666' }]} />
+					<Text style={styles.legendLabel}>Scheduled</Text>
+				</View>
 			</View>
+			)}
 
 			<Modal
 				visible={sheetVisible}
@@ -353,6 +394,43 @@ const styles = StyleSheet.create({
 		fontFamily: FontFamily.semiBold,
 		color: '#666666'
 	},
+	emptyState: {
+		flex: 1,
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingHorizontal: 40,
+		paddingBottom: 60
+	},
+	emptyTitle: {
+		fontSize: 20,
+		fontFamily: FontFamily.bold,
+		color: '#FFFFFF',
+		marginTop: 20,
+		marginBottom: 8,
+		textAlign: 'center'
+	},
+	emptySubtitle: {
+		fontSize: 14,
+		fontFamily: FontFamily.regular,
+		color: '#666666',
+		textAlign: 'center',
+		lineHeight: 20,
+		marginBottom: 28
+	},
+	emptyButton: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+		backgroundColor: '#AFFF2B',
+		paddingHorizontal: 24,
+		paddingVertical: 14,
+		borderRadius: 12
+	},
+	emptyButtonText: {
+		fontSize: 15,
+		fontFamily: FontFamily.bold,
+		color: '#000000'
+	},
 	grid: { paddingHorizontal: 12 },
 	row: { flexDirection: 'row', marginBottom: 4 },
 	cell: { flex: 1, alignItems: 'center', paddingVertical: 4 },
@@ -362,6 +440,17 @@ const styles = StyleSheet.create({
 		borderRadius: 19,
 		alignItems: 'center',
 		justifyContent: 'center'
+	},
+	dotSlot: {
+		height: 8,
+		alignItems: 'center',
+		justifyContent: 'center'
+	},
+	scheduledDot: {
+		width: 5,
+		height: 5,
+		borderRadius: 2.5,
+		backgroundColor: '#666666'
 	},
 	circleCompleted: {
 		backgroundColor: 'rgba(175, 255, 43, 0.15)',

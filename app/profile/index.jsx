@@ -236,9 +236,9 @@ export default function ProfileScreen() {
 				<View style={styles.section}>
 					{/* <Text style={styles.sectionTitle}>Workout</Text> */}
 					<MenuItem
-						icon='barbell-outline'
-						label='Workout Plan'
-						onPress={() => router.push('/profile/workout-plan')}
+						icon='list-outline'
+						label='My Programs'
+						onPress={() => router.push('/profile/programs')}
 					/>
 				</View>
 

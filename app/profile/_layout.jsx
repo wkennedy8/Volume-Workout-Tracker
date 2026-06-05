@@ -72,6 +72,12 @@ export default function ProfileLayout() {
 					headerTitle: 'Notifications'
 				}}
 			/>
+			<Stack.Screen
+				name='programs'
+				options={{
+					headerTitle: 'My Programs'
+				}}
+			/>
 		</Stack>
 	);
 }

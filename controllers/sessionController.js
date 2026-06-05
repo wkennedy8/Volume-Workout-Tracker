@@ -1,4 +1,3 @@
-import { getUserWorkoutPlan } from '@/controllers/plansController'
 import {
 	collection,
 	doc,
@@ -16,8 +15,7 @@ import { db } from '../lib/firebase'
 import { formatLocalDateKey } from '../utils/dateUtils'
 import { PLAN } from '../utils/workoutPlan'
 import { normalizeExerciseKey } from '../utils/workoutUtils'
-import { checkAndAdvanceWeek } from './weekCompletionController'
-import { evaluateSessionForSuggestions } from './weightSuggestionsController'
+import { advanceProgramWeekOnCompletion } from './programController'
 
 function sessionsCol(uid) {
 	return collection(db, 'users', uid, 'sessions')
@@ -72,25 +70,16 @@ export async function markSessionCompleted(uid, sessionId) {
 			{ merge: true }
 		)
 
-		// CHECK FOR WEEK COMPLETION - NEW CODE
-		if (session.programWeek) {
-			// Get user's plan
-			const plan = await getUserWorkoutPlan(uid)
-			const planId = plan?.id || 'ppl'
-
-			// Check if week should advance
-			const result = await checkAndAdvanceWeek(uid, planId)
-
-			// Evaluate progressive overload suggestions (fire-and-forget)
-			evaluateSessionForSuggestions(uid, session)
-
-			return {
-				success: true,
-				weekAdvancement: result
-			}
+		// Advance the custom program's week if this session belongs to one
+		if (session.programId && session.programWeek) {
+			const result = await advanceProgramWeekOnCompletion(
+				uid,
+				session.programId,
+				session.programWeek
+			)
+			return { success: true, weekAdvancement: result }
 		}
 
-		evaluateSessionForSuggestions(uid, session)
 		return { success: true }
 	} catch (error) {
 		console.error('Error marking session completed:', error)

@@ -2,9 +2,11 @@ import { useAuth } from '@/context/AuthContext';
 import { CARDIO_TYPES, getAllCardio } from '@/controllers/cardioController';
 import { getUserWorkoutPlan } from '@/controllers/plansController';
 import { getProgramWeek } from '@/controllers/programProgressController';
+import { getProfile } from '@/controllers/profileController';
 import { computeSessionStats } from '@/controllers/sessionController';
 import { getRecentWeights } from '@/controllers/weightController';
 import { db } from '@/lib/firebase';
+import { Ionicons } from '@expo/vector-icons';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
@@ -12,6 +14,7 @@ import {
 	ScrollView,
 	StyleSheet,
 	Text,
+	TouchableOpacity,
 	View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -37,6 +40,9 @@ import {
 export default function AnalyticsScreen() {
 	const { user } = useAuth();
 	const [loading, setLoading] = useState(true);
+
+	// Subscription gate — null = checking, true/false = resolved
+	const [isPro, setIsPro] = useState(null);
 
 	// Weight data
 	const [weights, setWeights] = useState([]);
@@ -64,8 +70,22 @@ export default function AnalyticsScreen() {
 	const [totalCardioDistance, setTotalCardioDistance] = useState(0);
 	const [cardioStreak, setCardioStreak] = useState(0);
 
+	// Check subscription access first
 	useEffect(() => {
 		if (!user?.uid) return;
+		(async () => {
+			try {
+				const profile = await getProfile(user.uid);
+				setIsPro(profile?.isPro === true);
+			} catch (e) {
+				console.warn('Failed to check subscription:', e);
+				setIsPro(false);
+			}
+		})();
+	}, [user?.uid]);
+
+	useEffect(() => {
+		if (!user?.uid || isPro !== true) return;
 
 		(async () => {
 			try {
@@ -191,7 +211,7 @@ export default function AnalyticsScreen() {
 				setLoading(false);
 			}
 		})();
-	}, [user?.uid]);
+	}, [user?.uid, isPro]);
 
 	// Filter and sample weights
 	const filteredWeights = weights.filter((w) => {
@@ -215,6 +235,50 @@ export default function AnalyticsScreen() {
 	const weeksToShow = [];
 	for (let week = 1; week <= currentWeek; week++) {
 		weeksToShow.push(week);
+	}
+
+	// Still checking subscription status
+	if (isPro === null) {
+		return (
+			<SafeAreaView style={styles.safe}>
+				<View style={styles.loadingWrap}>
+					<ActivityIndicator size='large' color='#AFFF2B' />
+				</View>
+			</SafeAreaView>
+		);
+	}
+
+	// Locked behind a paid subscription
+	if (!isPro) {
+		return (
+			<SafeAreaView style={styles.safe}>
+				<View style={styles.paywallWrap}>
+					<View style={styles.paywallIcon}>
+						<Ionicons name='bar-chart' size={40} color='#AFFF2B' />
+					</View>
+					<Text style={styles.paywallTitle}>Analytics is a Pro feature</Text>
+					<Text style={styles.paywallSubtitle}>
+						Upgrade to track your volume, streaks, personal records, and weight
+						trends over time.
+					</Text>
+
+					<View style={styles.paywallList}>
+						<PaywallPerk label='Weekly volume & set breakdowns' />
+						<PaywallPerk label='Personal records & best sets' />
+						<PaywallPerk label='Weight & cardio progress charts' />
+					</View>
+
+					<TouchableOpacity
+						style={styles.paywallButton}
+						activeOpacity={0.85}
+						onPress={() => {}}
+					>
+						<Text style={styles.paywallButtonText}>Upgrade to Pro</Text>
+						<Ionicons name='arrow-forward' size={18} color='#000000' />
+					</TouchableOpacity>
+				</View>
+			</SafeAreaView>
+		);
 	}
 
 	if (loading) {
@@ -289,8 +353,77 @@ export default function AnalyticsScreen() {
 	);
 }
 
+function PaywallPerk({ label }) {
+	return (
+		<View style={styles.paywallPerk}>
+			<Ionicons name='checkmark-circle' size={18} color='#AFFF2B' />
+			<Text style={styles.paywallPerkText}>{label}</Text>
+		</View>
+	);
+}
+
 const styles = StyleSheet.create({
 	safe: { flex: 1, backgroundColor: '#000000' },
+	paywallWrap: {
+		flex: 1,
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingHorizontal: 32
+	},
+	paywallIcon: {
+		width: 80,
+		height: 80,
+		borderRadius: 24,
+		backgroundColor: 'rgba(175,255,43,0.1)',
+		alignItems: 'center',
+		justifyContent: 'center',
+		marginBottom: 24
+	},
+	paywallTitle: {
+		fontSize: 24,
+		fontFamily: FontFamily.black,
+		color: '#FFFFFF',
+		textAlign: 'center',
+		marginBottom: 10
+	},
+	paywallSubtitle: {
+		fontSize: 15,
+		fontWeight: '700',
+		color: '#999999',
+		textAlign: 'center',
+		lineHeight: 22,
+		marginBottom: 28
+	},
+	paywallList: {
+		alignSelf: 'stretch',
+		gap: 12,
+		marginBottom: 32
+	},
+	paywallPerk: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 10
+	},
+	paywallPerkText: {
+		fontSize: 14,
+		fontWeight: '700',
+		color: '#FFFFFF'
+	},
+	paywallButton: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+		backgroundColor: '#AFFF2B',
+		paddingHorizontal: 32,
+		paddingVertical: 16,
+		borderRadius: 14
+	},
+	paywallButtonText: {
+		fontSize: 16,
+		fontFamily: FontFamily.black,
+		color: '#000000'
+	},
 	scrollView: { flex: 1 },
 	scrollContent: {
 		paddingHorizontal: 18,

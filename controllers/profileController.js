@@ -9,8 +9,7 @@ import {
 	orderBy,
 	query,
 	serverTimestamp,
-	setDoc,
-	updateDoc
+	setDoc
 } from 'firebase/firestore';
 import {
 	deleteObject,
@@ -27,9 +26,6 @@ export async function getProfile(uid) {
 	const snap = await getDoc(profileRef(uid));
 	if (!snap.exists()) {
 		return {
-			protein: 0,
-			carbs: 0,
-			fats: 0,
 			profilePhotoUri: null,
 			goal: null,
 			onboardingCompleted: false,
@@ -40,7 +36,8 @@ export async function getProfile(uid) {
 			age: null,
 			weightUnit: 'lbs',
 			distanceUnit: 'miles',
-			lastCarbReductionDate: null, // ADD THIS LINE
+			splitType: null,
+			isPro: false,
 			notifications: {
 				workoutReminders: true,
 				progressUpdates: true,
@@ -51,9 +48,6 @@ export async function getProfile(uid) {
 	}
 	const data = snap.data() || {};
 	return {
-		protein: Number(data.protein) || 0,
-		carbs: Number(data.carbs) || 0,
-		fats: Number(data.fats) || 0,
 		profilePhotoUri: data.profilePhotoUri || null,
 		goal: data.goal || null,
 		onboardingCompleted: data.onboardingCompleted || false,
@@ -64,7 +58,8 @@ export async function getProfile(uid) {
 		age: data.age || null,
 		weightUnit: data.weightUnit || 'lbs',
 		distanceUnit: data.distanceUnit || 'miles',
-		lastCarbReductionDate: data.lastCarbReductionDate || null, // ADD THIS LINE
+		splitType: data.splitType || null,
+		isPro: data.isPro === true,
 		notifications: data.notifications || {
 			workoutReminders: true,
 			progressUpdates: true,
@@ -83,46 +78,6 @@ export async function upsertProfile(uid, patch) {
 		},
 		{ merge: true }
 	);
-}
-
-// UPDATED: Now accepts saveDate parameter
-export async function reduceCarbs(uid, grams, saveDate = false) {
-	const snap = await getDoc(profileRef(uid));
-	const data = snap.exists() ? snap.data() || {} : {};
-	const currentCarbs = Number(data.carbs) || 0;
-	const nextCarbs = Math.max(0, currentCarbs - Number(grams || 0));
-
-	// Prepare update data
-	const updateData = {
-		carbs: nextCarbs,
-		updatedAt: serverTimestamp()
-	};
-
-	// If saveDate is true, also save the current timestamp
-	if (saveDate) {
-		updateData.lastCarbReductionDate = new Date().toISOString();
-	}
-
-	if (!snap.exists()) {
-		// Create doc if missing
-		await setDoc(
-			profileRef(uid),
-			{
-				protein: 0,
-				carbs: nextCarbs,
-				fats: 0,
-				...(saveDate && {
-					lastCarbReductionDate: updateData.lastCarbReductionDate
-				}),
-				updatedAt: serverTimestamp()
-			},
-			{ merge: true }
-		);
-		return nextCarbs;
-	}
-
-	await updateDoc(profileRef(uid), updateData);
-	return nextCarbs;
 }
 
 // ============================================================================

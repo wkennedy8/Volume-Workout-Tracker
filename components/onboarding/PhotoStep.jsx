@@ -1,6 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { setUserWorkoutPlan } from '@/controllers/plansController';
 import {
 	updateUserSettings,
 	uploadProfilePhoto,
@@ -78,26 +77,18 @@ export default function PhotoStep({
 			}
 			// Save all onboarding data to Firebase
 			await Promise.all([
-				// Save profile info (name, email, phone)
 				updateUserSettings(user.uid, {
 					name: data.name,
 					email: data.email,
 					phone: user.phoneNumber || ''
 				}),
-				// Save goal, current weight, macros, profile photo, AND onboarding flag together
 				upsertProfile(user.uid, {
 					goal: data.goal,
 					currentWeight: data.currentWeight,
-					protein: data.protein, // Add this line
-					carbs: data.carbs, // Add this line
-					fats: data.fats, // Add this line
+					splitType: data.selectedPlanId,
 					profilePhotoUri: profilePhotoUrl,
 					onboardingCompleted: true,
 					onboardingCompletedAt: new Date().toISOString()
-				}),
-				// Save selected workout plan
-				setUserWorkoutPlan(user.uid, {
-					selectedPlanId: data.selectedPlanId
 				})
 			]);
 

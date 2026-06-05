@@ -9,7 +9,6 @@ import {
 	FlatList,
 	Image,
 	KeyboardAvoidingView,
-	Modal,
 	Platform,
 	ScrollView,
 	StyleSheet,
@@ -38,57 +37,6 @@ function getLatestEntry(entries) {
 	return entries[0]; // First item = newest
 }
 
-function shouldSuggestMacroCut(entries, lastCarbReductionDate) {
-	// Need at least 14 days of data
-	if (!Array.isArray(entries) || entries.length < 14) {
-		return { eligible: false, stalled: false, reason: 'insufficient_data' };
-	}
-
-	// Check if carbs were recently reduced (within last 7 days)
-	if (lastCarbReductionDate) {
-		const today = new Date();
-		const lastReduction = new Date(lastCarbReductionDate);
-		const daysSinceReduction = Math.floor(
-			(today - lastReduction) / (1000 * 60 * 60 * 24)
-		);
-
-		if (daysSinceReduction < 7) {
-			return {
-				eligible: false,
-				stalled: false,
-				reason: 'recent_reduction',
-				daysSinceReduction,
-				daysRemaining: 7 - daysSinceReduction
-			};
-		}
-	}
-
-	// Get last 14 entries (sorted newest-first)
-	const last14 = entries.slice(0, 14);
-
-	// Split into two weeks
-	const last7 = last14.slice(0, 7); // Days 1-7 (most recent)
-	const prev7 = last14.slice(7, 14); // Days 8-14 (previous week)
-
-	// Calculate averages
-	const last7Avg = last7.reduce((sum, e) => sum + Number(e.weight), 0) / 7;
-	const prev7Avg = prev7.reduce((sum, e) => sum + Number(e.weight), 0) / 7;
-
-	// Calculate weekly change (negative = weight loss)
-	const weeklyLoss = prev7Avg - last7Avg;
-
-	// Stalled if less than 0.5 lbs loss per week
-	const stalled = weeklyLoss < 0.5;
-
-	return {
-		eligible: true,
-		stalled,
-		last7Avg,
-		prev7Avg,
-		weeklyLoss,
-		reason: stalled ? 'stalled' : 'progressing'
-	};
-}
 
 export default function HomeScreen() {
 	const router = useRouter();
@@ -98,16 +46,12 @@ export default function HomeScreen() {
 	// Hooks
 	const { entries, todayKey, getEntryForDate, upsertEntry } =
 		useWeightEntries();
-	const { profile, calories, reduceCarbs } = useProfile();
+	const { profile } = useProfile();
 	const greeting = useMemo(
 		() => getTimeBasedGreeting(profile.name),
 		[profile.name]
 	);
 	const goal = profile.goal; // 'lose' | 'maintain' | 'gain' | null
-
-	// Stall modal state
-	const [macroModalVisible, setMacroModalVisible] = useState(false);
-	const [macroModalData, setMacroModalData] = useState(null);
 
 	// Prefill today's weight once entries load/update
 	useEffect(() => {
@@ -126,40 +70,10 @@ export default function HomeScreen() {
 		const weight = Number(trimmed);
 
 		try {
-			const nextEntries = await upsertEntry({ dateKey: todayKey, weight });
+			await upsertEntry({ dateKey: todayKey, weight });
 			Alert.alert('Saved', "Today's weight has been saved.");
-
-			// Stall rule check after save - pass lastCarbReductionDate from profile
-			const check = shouldSuggestMacroCut(
-				nextEntries,
-				profile.lastCarbReductionDate
-			);
-
-			if (check.eligible && check.stalled) {
-				setMacroModalData(check);
-				setMacroModalVisible(true);
-			} else if (check.reason === 'recent_reduction') {
-				// Optional: inform user they recently reduced carbs
-				console.log(
-					`Carb reduction cooldown: ${check.daysRemaining} days remaining`
-				);
-			}
 		} catch (e) {
 			Alert.alert('Error', 'Could not save your weight. Please try again.');
-		}
-	}
-
-	// Apply carb reduction from modal
-	async function applyCarbReduction() {
-		try {
-			// Save both the carb reduction AND the date it happened
-			await reduceCarbs(15, true); // Pass flag to save date
-			setMacroModalVisible(false);
-			setMacroModalData(null);
-			Alert.alert('Updated', 'Carbs lowered by 15g. Check again in 7 days.');
-		} catch (e) {
-			console.warn('Failed to apply carb reduction:', e);
-			Alert.alert('Error', 'Could not update macros. Please try again.');
 		}
 	}
 
@@ -205,51 +119,6 @@ export default function HomeScreen() {
 				behavior={Platform.OS === 'ios' ? 'padding' : undefined}
 				style={{ flex: 1 }}
 			>
-				{/* Stall Detection Modal */}
-				<Modal
-					visible={macroModalVisible}
-					transparent
-					animationType='fade'
-					onRequestClose={() => setMacroModalVisible(false)}
-				>
-					<View style={styles.modalBackdrop}>
-						<View style={styles.modalCard}>
-							<Text style={styles.modalTitle}>Progress Check</Text>
-
-							<Text style={styles.modalBody}>
-								Your average weight change over the last 7 days is under 0.5
-								lbs. Lower your carbs by 15g to restart progress.
-							</Text>
-
-							{macroModalData?.eligible ? (
-								<Text style={styles.modalSubtle}>
-									Prev 7-day avg: {toFixed1(macroModalData.prev7Avg)} • Last
-									7-day avg: {toFixed1(macroModalData.last7Avg)} • Weekly
-									change: {toFixed1(macroModalData.weeklyLoss)} lbs
-								</Text>
-							) : null}
-
-							<View style={styles.modalActionsRow}>
-								<TouchableOpacity
-									style={styles.modalSecondaryBtn}
-									onPress={() => setMacroModalVisible(false)}
-									activeOpacity={0.9}
-								>
-									<Text style={styles.modalSecondaryText}>Not Now</Text>
-								</TouchableOpacity>
-
-								<TouchableOpacity
-									style={styles.modalPrimaryBtn}
-									onPress={applyCarbReduction}
-									activeOpacity={0.9}
-								>
-									<Text style={styles.modalPrimaryText}>Apply -15g Carbs</Text>
-								</TouchableOpacity>
-							</View>
-						</View>
-					</View>
-				</Modal>
-
 				<ScrollView
 					style={styles.scrollView}
 					contentContainerStyle={styles.scrollContent}
@@ -284,33 +153,6 @@ export default function HomeScreen() {
 
 					{/* Weekly Streak Card */}
 					<WeeklyStreakCard />
-
-					{/* Calories & Macros */}
-					<View style={styles.macrosCard}>
-						<View style={styles.macrosHeader}>
-							<Text style={styles.macrosTitle}>Calories & Macros</Text>
-							<View style={styles.caloriePill}>
-								<Text style={styles.caloriePillText}>
-									{Math.round(calories)} cal
-								</Text>
-							</View>
-						</View>
-
-						<View style={styles.macroRow}>
-							<View style={styles.macroChip}>
-								<Text style={styles.macroChipLabel}>Protein</Text>
-								<Text style={styles.macroChipValue}>{profile.protein}g</Text>
-							</View>
-							<View style={styles.macroChip}>
-								<Text style={styles.macroChipLabel}>Carbs</Text>
-								<Text style={styles.macroChipValue}>{profile.carbs}g</Text>
-							</View>
-							<View style={styles.macroChip}>
-								<Text style={styles.macroChipLabel}>Fats</Text>
-								<Text style={styles.macroChipValue}>{profile.fats}g</Text>
-							</View>
-						</View>
-					</View>
 
 					{/* Today's Weight */}
 					<View style={styles.section}>
@@ -495,56 +337,6 @@ const styles = StyleSheet.create({
 		fontSize: 20
 	},
 
-	macrosCard: {
-		borderWidth: 1,
-		borderColor: '#333333',
-		borderRadius: 16,
-		backgroundColor: '#1A1A1A',
-		padding: 14,
-		marginBottom: 12
-	},
-	macrosHeader: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between'
-	},
-	macrosTitle: {
-		fontSize: 16,
-		fontFamily: FontFamily.black,
-		color: '#fff'
-	},
-	caloriePill: {
-		paddingHorizontal: 10,
-		paddingVertical: 6,
-		borderRadius: 999,
-		backgroundColor: '#2A2A2A'
-	},
-	caloriePillText: {
-		fontSize: 12,
-		fontFamily: FontFamily.black,
-		color: '#FFFFFF'
-	},
-	macroRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
-	macroChip: {
-		flex: 1,
-		borderWidth: 1,
-		borderColor: '#333333',
-		borderRadius: 14,
-		padding: 10,
-		backgroundColor: '#0D0D0D'
-	},
-	macroChipLabel: {
-		fontSize: 11,
-		fontFamily: FontFamily.extraBold,
-		color: '#999999'
-	},
-	macroChipValue: {
-		marginTop: 6,
-		fontSize: 16,
-		fontFamily: FontFamily.black,
-		color: '#FFFFFF'
-	},
-
 	section: { marginTop: 6 },
 	sectionTitle: {
 		fontSize: 18,
@@ -675,69 +467,6 @@ const styles = StyleSheet.create({
 		lineHeight: 18
 	},
 
-	modalBackdrop: {
-		flex: 1,
-		backgroundColor: 'rgba(0,0,0,0.85)',
-		alignItems: 'center',
-		justifyContent: 'center',
-		padding: 18
-	},
-	modalCard: {
-		width: '100%',
-		borderRadius: 18,
-		backgroundColor: '#1A1A1A',
-		padding: 18,
-		borderWidth: 1,
-		borderColor: '#333333'
-	},
-	modalTitle: {
-		fontSize: 18,
-		fontFamily: FontFamily.black,
-		color: '#AFFF2B',
-		textAlign: 'center'
-	},
-	modalBody: {
-		marginTop: 10,
-		fontSize: 13,
-		fontFamily: FontFamily.bold,
-		color: '#FFFFFF',
-		textAlign: 'center',
-		lineHeight: 18
-	},
-	modalSubtle: {
-		marginTop: 10,
-		fontSize: 12,
-		fontFamily: FontFamily.bold,
-		color: '#999999',
-		textAlign: 'center'
-	},
-	modalActionsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
-	modalSecondaryBtn: {
-		flex: 1,
-		height: 48,
-		borderRadius: 14,
-		backgroundColor: '#2A2A2A',
-		alignItems: 'center',
-		justifyContent: 'center'
-	},
-	modalSecondaryText: {
-		fontSize: 14,
-		fontFamily: FontFamily.black,
-		color: '#FFFFFF'
-	},
-	modalPrimaryBtn: {
-		flex: 1,
-		height: 48,
-		borderRadius: 14,
-		backgroundColor: '#AFFF2B',
-		alignItems: 'center',
-		justifyContent: 'center'
-	},
-	modalPrimaryText: {
-		fontSize: 14,
-		fontFamily: FontFamily.black,
-		color: '#000000'
-	},
 	divider: { height: 1, backgroundColor: '#333333', marginVertical: 18 },
 
 	historyHeaderRow: {

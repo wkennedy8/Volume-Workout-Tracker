@@ -4,24 +4,16 @@ import {
 	getCardioForDate,
 	logCardioSession
 } from '@/controllers/cardioController';
-import { getUserWorkoutPlan } from '@/controllers/plansController';
-import {
-	getProgramProgress,
-	resolveExerciseProgression,
-	startNewCycle
-} from '@/controllers/programProgressController';
-import {
-	getScheduleOverride,
-	markAsRestDayAndReschedule
-} from '@/controllers/rescheduleController';
+import { getActiveProgram, getIncompleteProgram } from '@/controllers/programController';
 import {
 	computeSessionStats,
 	shareCompletedSession
 } from '@/controllers/sessionController';
 import { useTodayWorkoutSession } from '@/hooks/useTodayWorkoutSession';
 import { formatLongDate } from '@/utils/dateUtils';
+import { getTodayWorkoutFromProgram } from '@/utils/programSchedule';
 import { formatLocalDateKey } from '@/utils/weightUtils';
-import { getWorkoutForDateWithOverride, tagColor } from '@/utils/workoutPlan';
+import { tagColor } from '@/utils/workoutUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -50,174 +42,86 @@ function getStartButtonLabel({
 
 function getStartNavigationParams({
 	workout,
+	programId,
 	isRestDay,
 	completedSession,
 	inProgressSession
 }) {
 	if (isRestDay) return null;
 
+	const base = { templateId: workout.id, programId: programId ?? '' };
+
 	if (completedSession) {
 		return {
 			pathname: '/workout/session',
-			params: {
-				templateId: workout.id,
-				mode: 'edit',
-				sessionId: completedSession.id
-			}
+			params: { ...base, mode: 'edit', sessionId: completedSession.id }
 		};
 	}
 
 	if (inProgressSession) {
 		return {
 			pathname: '/workout/session',
-			params: {
-				templateId: workout.id,
-				mode: 'resume',
-				sessionId: inProgressSession.id
-			}
+			params: { ...base, mode: 'resume', sessionId: inProgressSession.id }
 		};
 	}
 
 	return {
 		pathname: '/workout/session',
-		params: { templateId: workout.id, mode: 'start' }
+		params: { ...base, mode: 'start' }
 	};
 }
+
+const REST_DAY = { id: 'rest', title: 'Rest Day', tag: 'Rest', exercises: [] };
 
 export default function WorkoutTab() {
 	const router = useRouter();
 	const { user } = useAuth();
 
-	const [userPlan, setUserPlan] = useState(null);
 	const [loadingPlan, setLoadingPlan] = useState(true);
 	const [workout, setWorkout] = useState(null);
-	const [programProgress, setProgramProgress] = useState(null);
-	const [planId, setPlanId] = useState(null);
+	const [activeProgram, setActiveProgram] = useState(null);
+	const [incompleteProgram, setIncompleteProgram] = useState(undefined); // undefined = not checked yet
 
-	const currentWeek = programProgress?.currentWeek ?? 1;
+	const currentWeek = activeProgram?.currentWeek ?? 1;
+	const cycleLength = activeProgram?.cycleLength ?? 8;
 
 	const [cardioModalVisible, setCardioModalVisible] = useState(false);
 	const [cardioSession, setCardioSession] = useState(null);
 
-	const [markedAsRest, setMarkedAsRest] = useState(false);
-
 	const today = useMemo(() => new Date(), []);
 	const todayKey = useMemo(() => formatLocalDateKey(today), [today]);
 
-	// Load user's selected plan and program week
-	useEffect(() => {
+	async function loadProgramData() {
 		if (!user?.uid) return;
+		try {
+			setLoadingPlan(true);
+			const [incomplete, active] = await Promise.all([
+				getIncompleteProgram(user.uid),
+				getActiveProgram(user.uid)
+			]);
+			setIncompleteProgram(incomplete ?? null);
+			setActiveProgram(active ?? null);
+			setWorkout(active ? (getTodayWorkoutFromProgram(active, today) ?? REST_DAY) : REST_DAY);
 
-		(async () => {
-			try {
-				setLoadingPlan(true);
-				const plan = await getUserWorkoutPlan(user.uid);
-				setUserPlan(plan);
-				setPlanId(plan?.id || 'ppl');
-
-				const progress = await getProgramProgress(user.uid, plan?.id || 'ppl');
-				setProgramProgress(progress);
-				const week = progress.currentWeek;
-
-				// Load today's workout with override support
-				const todayWorkout = await getWorkoutForDateWithOverride(
-					today,
-					plan,
-					user.uid
-				);
-
-				// Apply weekly progression to workout if it has exercises
-				if (todayWorkout && todayWorkout.exercises) {
-					const progressedWorkout = applyProgressionToWorkout(
-						todayWorkout,
-						week
-					);
-					setWorkout(progressedWorkout);
-				} else {
-					setWorkout(todayWorkout);
-				}
-
-				// Check if today was marked as rest
-				const override = await getScheduleOverride(user.uid, todayKey);
-				if (override && override.workoutId === 'rest') {
-					setMarkedAsRest(true);
-				}
-			} catch (error) {
-				console.error('Failed to load workout plan:', error);
-			} finally {
-				setLoadingPlan(false);
-			}
-		})();
-	}, [user?.uid, todayKey]);
-
-	// Helper function to apply weekly progression to a workout
-	function applyProgressionToWorkout(workout, week) {
-		if (!workout || !workout.exercises) return workout;
-
-		return {
-			...workout,
-			exercises: workout.exercises.map((exercise) => {
-				// If exercise has weeklyProgression, resolve sets/reps for current week
-				if (exercise.weeklyProgression) {
-					const resolved = resolveExerciseProgression(exercise, week);
-					return {
-						...exercise,
-						sets: String(resolved.sets),
-						reps: String(resolved.reps)
-					};
-				}
-				// Otherwise, keep as is
-				return exercise;
-			})
-		};
+			const cardio = await getCardioForDate(user.uid, todayKey);
+			setCardioSession(cardio);
+		} catch (error) {
+			console.error('Failed to load program data:', error);
+			setWorkout(REST_DAY);
+		} finally {
+			setLoadingPlan(false);
+		}
 	}
 
-	// Check for schedule overrides and reload data
+	useEffect(() => {
+		loadProgramData();
+	}, [user?.uid, todayKey]);
+
 	useFocusEffect(
 		useCallback(() => {
-			if (!user?.uid || !userPlan) return;
-			(async () => {
-				try {
-					// Reload program progress (picks up completedAt, endDate, week advances)
-					const progress = await getProgramProgress(user.uid, planId || 'ppl');
-					setProgramProgress(progress);
-					const week = progress.currentWeek;
-
-					// Check for schedule override
-					const overriddenWorkout = await getWorkoutForDateWithOverride(
-						today,
-						userPlan,
-						user.uid
-					);
-
-					// Apply progression
-					const progressedWorkout = applyProgressionToWorkout(
-						overriddenWorkout,
-						week
-					);
-					setWorkout(progressedWorkout);
-
-					// Check if today was marked as rest
-					const override = await getScheduleOverride(user.uid, todayKey);
-
-					if (override && override.workoutId === 'rest') {
-						setMarkedAsRest(true);
-					} else {
-						setMarkedAsRest(false);
-					}
-
-					// Reload plan
-					const plan = await getUserWorkoutPlan(user.uid);
-					setUserPlan(plan);
-
-					// Reload cardio session
-					const session = await getCardioForDate(user.uid, todayKey);
-					setCardioSession(session);
-				} catch (error) {
-					console.error('Failed to reload data:', error);
-				}
-			})();
-		}, [user?.uid, userPlan, today, todayKey, planId])
+			if (!user?.uid) return;
+			loadProgramData();
+		}, [user?.uid, todayKey])
 	);
 
 	const isRestDay = workout?.id === 'rest';
@@ -260,13 +164,14 @@ export default function WorkoutTab() {
 
 		const nav = getStartNavigationParams({
 			workout,
+			programId: activeProgram?.id ?? null,
 			isRestDay,
 			completedSession,
 			inProgressSession
 		});
 
 		if (nav) router.push(nav);
-	}, [router, workout, isRestDay, completedSession, inProgressSession]);
+	}, [router, workout, activeProgram, isRestDay, completedSession, inProgressSession]);
 
 	const onPressExercise = useCallback((item) => {
 		Alert.alert(
@@ -322,71 +227,60 @@ export default function WorkoutTab() {
 		}
 	}
 
-	async function handleMarkRestDay() {
-		if (!user?.uid || !userPlan || !workout) return;
-
-		Alert.alert(
-			'Mark as Rest Day',
-			`This will move today's workout (${workout.title}) to tomorrow. Your streak will be maintained.\n\nContinue?`,
-			[
-				{ text: 'Cancel', style: 'cancel' },
-				{
-					text: 'Mark as Rest',
-					style: 'default',
-					onPress: async () => {
-						try {
-							// Pass the current workout object so it knows exactly what to move
-							const result = await markAsRestDayAndReschedule(
-								user.uid,
-								userPlan,
-								todayKey,
-								workout // ← Pass the actual workout object
-							);
-
-							// Set workout to rest day directly
-							setWorkout({
-								id: 'rest',
-								title: 'Rest Day',
-								tag: 'Rest',
-								exercises: []
-							});
-							setMarkedAsRest(true);
-
-							Alert.alert(
-								'Success',
-								`${result.movedWorkout} has been moved to tomorrow!`
-							);
-						} catch (error) {
-							console.error('Failed to reschedule:', error);
-							Alert.alert(
-								'Error',
-								error.message || 'Failed to reschedule workout'
-							);
-						}
-					}
-				}
-			]
-		);
-	}
-
-	async function handleStartNewCycle() {
-		if (!user?.uid || !planId) return;
-		try {
-			await startNewCycle(user.uid, planId);
-			const progress = await getProgramProgress(user.uid, planId);
-			setProgramProgress(progress);
-		} catch (error) {
-			Alert.alert('Error', 'Could not start new cycle.');
-		}
-	}
 
 	// Loading state
-	if (loadingPlan || !workout) {
+	if (loadingPlan || !workout || incompleteProgram === undefined) {
 		return (
 			<SafeAreaView style={styles.safe}>
 				<View style={styles.loadingWrap}>
 					<ActivityIndicator size='large' color='#AFFF2B' />
 					<Text style={styles.loadingText}>Loading workout...</Text>
+				</View>
+			</SafeAreaView>
+		);
+	}
+
+	// No program at all — prompt to build one
+	if (!incompleteProgram && !activeProgram) {
+		return (
+			<SafeAreaView style={styles.safe}>
+				<View style={styles.blockerWrap}>
+					<Ionicons name='barbell-outline' size={64} color='#333333' style={styles.blockerIcon} />
+					<Text style={styles.blockerTitle}>No program yet</Text>
+					<Text style={styles.blockerSubtitle}>
+						Build a custom program to start tracking your workouts.
+					</Text>
+					<TouchableOpacity
+						style={styles.blockerBtn}
+						onPress={() => router.push('/program-builder')}
+						activeOpacity={0.85}
+					>
+						<Text style={styles.blockerBtnText}>Build a Program</Text>
+						<Ionicons name='arrow-forward' size={18} color='#000000' />
+					</TouchableOpacity>
+				</View>
+			</SafeAreaView>
+		);
+	}
+
+	// Incomplete program blocker — user must finish building their program before training
+	if (incompleteProgram) {
+		return (
+			<SafeAreaView style={styles.safe}>
+				<View style={styles.blockerWrap}>
+					<Ionicons name='barbell-outline' size={64} color='#AFFF2B' style={styles.blockerIcon} />
+					<Text style={styles.blockerTitle}>Finish your program first</Text>
+					<Text style={styles.blockerSubtitle}>
+						You have an unfinished program. Complete the setup before you can start training.
+					</Text>
+					<TouchableOpacity
+						style={styles.blockerBtn}
+						onPress={() => router.push('/program-builder')}
+						activeOpacity={0.85}
+					>
+						<Text style={styles.blockerBtnText}>Finish Setup</Text>
+						<Ionicons name='arrow-forward' size={18} color='#000000' />
+					</TouchableOpacity>
 				</View>
 			</SafeAreaView>
 		);
@@ -413,17 +307,8 @@ export default function WorkoutTab() {
 					{!isRestDay && (
 						<View style={styles.weekBadge}>
 							<Text style={styles.weekBadgeText}>
-								Week {currentWeek} / 8
+								Week {currentWeek} / {cycleLength}
 							</Text>
-							{programProgress?.endDate && (
-								<Text style={styles.weekBadgeSubtext}>
-									ends{' '}
-									{new Date(programProgress.endDate).toLocaleDateString(
-										undefined,
-										{ month: 'short', day: 'numeric' }
-									)}
-								</Text>
-							)}
 						</View>
 					)}
 				</View>
@@ -442,16 +327,6 @@ export default function WorkoutTab() {
 						<Text style={styles.workoutTitle}>{workout.title}</Text>
 					</View>
 
-					{/* Mark as Rest Day Button */}
-					{!isRestDay && !completedSession && !inProgressSession && (
-						<TouchableOpacity
-							style={styles.restDayButton}
-							onPress={handleMarkRestDay}
-							activeOpacity={0.9}
-						>
-							<Ionicons name='moon-outline' size={16} color='#999999' />
-						</TouchableOpacity>
-					)}
 				</View>
 
 				{/* Optional Cardio Card */}
@@ -581,78 +456,8 @@ export default function WorkoutTab() {
 							</Text>
 						</TouchableOpacity>
 					</View>
-				) : markedAsRest ? (
-					<View style={styles.summaryCard}>
-						<View style={styles.summaryHeader}>
-							<Text style={styles.summaryTitle}>Rest Day</Text>
-							<Text
-								style={[styles.summarySubtitle, styles.summarySubtitleRest]}
-							>
-								Rescheduled
-							</Text>
-						</View>
-
-						<View style={styles.restDaySummary}>
-							<View style={styles.restDayIcon}>
-								<Ionicons name='moon' size={32} color='#AFFF2B' />
-							</View>
-							<Text style={styles.restDayTitle}>Workout Rescheduled</Text>
-							<Text style={styles.restDayDescription}>
-								Your scheduled workout has been moved to tomorrow. Your streak
-								continues!
-							</Text>
-						</View>
-
-						<View style={styles.restDayInfo}>
-							<View style={styles.restDayInfoRow}>
-								<Ionicons name='calendar-outline' size={16} color='#AFFF2B' />
-								<Text style={styles.restDayInfoText}>
-									Tomorrow: Check back for your rescheduled workout
-								</Text>
-							</View>
-							<View style={styles.restDayInfoRow}>
-								<Ionicons name='flame-outline' size={16} color='#AFFF2B' />
-								<Text style={styles.restDayInfoText}>
-									Streak maintained with rest day
-								</Text>
-							</View>
-						</View>
-					</View>
 				) : null}
 
-				{/* Program completion card */}
-				{programProgress?.completedAt && (
-					<View style={styles.completionCard}>
-						<View style={styles.completionIconWrap}>
-							<Ionicons name='trophy' size={32} color='#AFFF2B' />
-						</View>
-						<Text style={styles.completionTitle}>Program Complete!</Text>
-						<Text style={styles.completionSubtitle}>
-							You finished all 8 weeks of {userPlan?.title ?? 'your program'}.
-							{programProgress.cycleNumber > 1
-								? ` Cycle ${programProgress.cycleNumber - 1} done.`
-								: ''}
-						</Text>
-						<View style={styles.completionActions}>
-							<TouchableOpacity
-								style={styles.completionPrimary}
-								onPress={handleStartNewCycle}
-								activeOpacity={0.9}
-							>
-								<Text style={styles.completionPrimaryText}>
-									Start New Cycle
-								</Text>
-							</TouchableOpacity>
-							<TouchableOpacity
-								style={styles.completionSecondary}
-								onPress={() => router.push('/profile/workout-plan')}
-								activeOpacity={0.9}
-							>
-								<Text style={styles.completionSecondaryText}>Switch Plan</Text>
-							</TouchableOpacity>
-						</View>
-					</View>
-				)}
 
 				{/* Exercise list */}
 				{isRestDay ? (
@@ -742,6 +547,42 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		fontWeight: '700',
 		color: '#999999'
+	},
+	blockerWrap: {
+		flex: 1,
+		alignItems: 'center',
+		justifyContent: 'center',
+		paddingHorizontal: 32
+	},
+	blockerIcon: { marginBottom: 24 },
+	blockerTitle: {
+		fontSize: 24,
+		fontFamily: FontFamily.black,
+		color: '#FFFFFF',
+		textAlign: 'center',
+		marginBottom: 12
+	},
+	blockerSubtitle: {
+		fontSize: 15,
+		fontWeight: '700',
+		color: '#999999',
+		textAlign: 'center',
+		lineHeight: 22,
+		marginBottom: 32
+	},
+	blockerBtn: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+		backgroundColor: '#AFFF2B',
+		paddingHorizontal: 28,
+		paddingVertical: 16,
+		borderRadius: 14
+	},
+	blockerBtnText: {
+		fontSize: 16,
+		fontFamily: FontFamily.black,
+		color: '#000000'
 	},
 
 	headerRow: {

@@ -1,79 +1,81 @@
-import { PLAN } from '@/utils/workoutPlan';
+import { getExercises } from '@/controllers/exerciseController';
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+	ActivityIndicator,
 	Modal,
 	ScrollView,
 	StyleSheet,
 	Text,
+	TextInput,
 	TouchableOpacity,
 	View
 } from 'react-native';
 import { FontFamily } from '../constants/fonts';
 
-export default function SwapExerciseModal({
-	visible,
-	onClose,
-	exercise,
-	templateId, // ADD THIS PROP - need to know which workout template
-	onSwap
-}) {
-	// Find alternatives from the original template
-	const alternatives = useMemo(() => {
-		if (!exercise || !templateId) return [];
+export default function SwapExerciseModal({ visible, onClose, exercise, onSwap }) {
+	const [allExercises, setAllExercises] = useState([]);
+	const [loading, setLoading] = useState(true);
+	const [search, setSearch] = useState('');
 
-		// Get the original exercise name (in case it was already swapped)
-		const exerciseName = exercise.originalName || exercise.name;
+	const currentName = exercise?.name;
 
-		// Find the template exercise that matches
-		for (const plan of Object.values(PLAN)) {
-			if (plan.workouts) {
-				for (const workout of Object.values(plan.workouts)) {
-					if (workout.id === templateId) {
-						// Found the right workout template
-						const templateExercise = workout.exercises?.find(
-							(ex) => ex.name === exerciseName
-						);
+	// Load the full library once when opened
+	useEffect(() => {
+		if (!visible) return;
+		setLoading(true);
+		setSearch('');
+		getExercises()
+			.then(setAllExercises)
+			.catch((e) => {
+				console.warn('Failed to load swap options:', e);
+				setAllExercises([]);
+			})
+			.finally(() => setLoading(false));
+	}, [visible]);
 
-						if (templateExercise && templateExercise.alternatives) {
-							return templateExercise.alternatives;
-						}
-					}
-				}
-			}
-		}
+	// Resolve the muscle group: prefer the value stored on the exercise, otherwise
+	// derive it by matching the exercise name against the library.
+	const muscleGroup = useMemo(() => {
+		if (exercise?.muscleGroup) return exercise.muscleGroup;
+		const match = allExercises.find(
+			(ex) => ex.name === (exercise?.originalName || exercise?.name)
+		);
+		return match?.muscleGroup ?? null;
+	}, [exercise, allExercises]);
 
-		return [];
-	}, [exercise, templateId]);
+	const filtered = useMemo(() => {
+		const query = search.trim().toLowerCase();
+		return allExercises
+			.filter((ex) => !muscleGroup || ex.muscleGroup === muscleGroup)
+			.filter((ex) => ex.name !== currentName)
+			.filter((ex) => query === '' || ex.name.toLowerCase().includes(query));
+	}, [allExercises, muscleGroup, search, currentName]);
 
 	if (!exercise) return null;
 
-	function handleSwap(alternative) {
-		onSwap(alternative);
+	function handleSwap(libraryExercise) {
+		onSwap(libraryExercise);
 		onClose();
 	}
 
-	function getDifficultyColor(difficulty) {
-		switch (difficulty) {
-			case 'easier':
-				return '#4ADE80'; // Green
-			case 'harder':
-				return '#F87171'; // Red
-			case 'same':
+	function equipmentIcon(equipment) {
+		switch (equipment) {
+			case 'Barbell':
+			case 'EZ Bar':
+				return 'barbell';
+			case 'Dumbbell':
+				return 'fitness';
+			case 'Cable':
+				return 'git-branch';
+			case 'Machine':
+				return 'construct';
+			case 'Bodyweight':
+				return 'body';
+			case 'Resistance Band':
+				return 'infinite';
 			default:
-				return '#FBBF24'; // Yellow
-		}
-	}
-
-	function getDifficultyIcon(difficulty) {
-		switch (difficulty) {
-			case 'easier':
-				return 'trending-down';
-			case 'harder':
-				return 'trending-up';
-			case 'same':
-			default:
-				return 'remove';
+				return 'fitness';
 		}
 	}
 
@@ -88,9 +90,11 @@ export default function SwapExerciseModal({
 				<View style={styles.modalCard}>
 					{/* Header */}
 					<View style={styles.header}>
-						<View>
+						<View style={styles.headerText}>
 							<Text style={styles.title}>Swap Exercise</Text>
-							<Text style={styles.subtitle}>Choose an alternative</Text>
+							<Text style={styles.subtitle}>
+								{muscleGroup ? `${muscleGroup} alternatives` : 'Choose an alternative'}
+							</Text>
 						</View>
 						<TouchableOpacity
 							onPress={onClose}
@@ -110,60 +114,79 @@ export default function SwapExerciseModal({
 						</View>
 					</View>
 
-					{/* Alternatives List */}
-					<ScrollView
-						style={styles.alternativesList}
-						showsVerticalScrollIndicator={false}
-					>
-						{alternatives.length === 0 ? (
-							<View style={styles.emptyState}>
-								<Text style={styles.emptyText}>
-									No alternatives available for this exercise
-								</Text>
-							</View>
-						) : (
-							alternatives.map((alt, index) => (
-								<TouchableOpacity
-									key={index}
-									style={styles.alternativeCard}
-									onPress={() => handleSwap(alt)}
-									activeOpacity={0.7}
-								>
-									<View style={styles.alternativeLeft}>
-										<Ionicons
-											name='swap-horizontal'
-											size={18}
-											color='#666666'
-										/>
-										<Text style={styles.alternativeName}>{alt.name}</Text>
-									</View>
-
-									<View
-										style={[
-											styles.difficultyBadge,
-											{
-												backgroundColor: `${getDifficultyColor(alt.difficulty)}20`
-											}
-										]}
-									>
-										<Ionicons
-											name={getDifficultyIcon(alt.difficulty)}
-											size={12}
-											color={getDifficultyColor(alt.difficulty)}
-										/>
-										<Text
-											style={[
-												styles.difficultyText,
-												{ color: getDifficultyColor(alt.difficulty) }
-											]}
-										>
-											{alt.difficulty}
-										</Text>
-									</View>
-								</TouchableOpacity>
-							))
+					{/* Search */}
+					<View style={styles.searchRow}>
+						<Ionicons name='search' size={18} color='#666666' />
+						<TextInput
+							style={styles.searchInput}
+							placeholder='Search exercises...'
+							placeholderTextColor='#666666'
+							value={search}
+							onChangeText={setSearch}
+							autoCorrect={false}
+						/>
+						{search.length > 0 && (
+							<TouchableOpacity
+								onPress={() => setSearch('')}
+								hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+							>
+								<Ionicons name='close-circle' size={18} color='#666666' />
+							</TouchableOpacity>
 						)}
-					</ScrollView>
+					</View>
+
+					{/* Alternatives List */}
+					{loading ? (
+						<View style={styles.loadingWrap}>
+							<ActivityIndicator size='large' color='#AFFF2B' />
+						</View>
+					) : (
+						<ScrollView
+							style={styles.alternativesList}
+							showsVerticalScrollIndicator={false}
+							keyboardShouldPersistTaps='handled'
+						>
+							{filtered.length === 0 ? (
+								<View style={styles.emptyState}>
+									<Text style={styles.emptyText}>
+										No alternatives available
+									</Text>
+								</View>
+							) : (
+								filtered.map((alt) => (
+									<TouchableOpacity
+										key={alt.id}
+										style={styles.alternativeCard}
+										onPress={() => handleSwap(alt)}
+										activeOpacity={0.7}
+									>
+										<View style={styles.alternativeLeft}>
+											<Ionicons name='swap-horizontal' size={18} color='#666666' />
+											<Text style={styles.alternativeName} numberOfLines={1}>
+												{alt.name}
+											</Text>
+										</View>
+
+										<View style={styles.alternativeRight}>
+											<View style={styles.typeBadge}>
+												<Text style={styles.typeBadgeText}>
+													{alt.isCompound ? 'Compound' : 'Accessory'}
+												</Text>
+											</View>
+											<View style={styles.equipmentRow}>
+												<Ionicons
+													name={equipmentIcon(alt.equipment)}
+													size={12}
+													color='#666666'
+												/>
+												<Text style={styles.equipmentText}>{alt.equipment}</Text>
+											</View>
+										</View>
+									</TouchableOpacity>
+								))
+							)}
+						</ScrollView>
+					)}
 
 					{/* Info Footer */}
 					<View style={styles.footer}>
@@ -191,7 +214,7 @@ const styles = StyleSheet.create({
 		paddingTop: 24,
 		paddingBottom: 40,
 		paddingHorizontal: 20,
-		maxHeight: '80%',
+		height: '80%',
 		borderTopWidth: 1,
 		borderLeftWidth: 1,
 		borderRightWidth: 1,
@@ -204,6 +227,7 @@ const styles = StyleSheet.create({
 		alignItems: 'flex-start',
 		marginBottom: 20
 	},
+	headerText: { flex: 1 },
 	title: {
 		fontSize: 24,
 		fontFamily: FontFamily.black,
@@ -225,7 +249,7 @@ const styles = StyleSheet.create({
 	},
 
 	currentExercise: {
-		marginBottom: 20
+		marginBottom: 16
 	},
 	currentLabel: {
 		fontSize: 12,
@@ -252,8 +276,32 @@ const styles = StyleSheet.create({
 		flex: 1
 	},
 
+	searchRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 10,
+		backgroundColor: '#0D0D0D',
+		borderWidth: 1,
+		borderColor: '#333333',
+		borderRadius: 12,
+		paddingHorizontal: 14,
+		paddingVertical: 10,
+		marginBottom: 14
+	},
+	searchInput: {
+		flex: 1,
+		fontSize: 15,
+		fontFamily: FontFamily.bold,
+		color: '#FFFFFF'
+	},
+
+	loadingWrap: {
+		flex: 1,
+		alignItems: 'center',
+		justifyContent: 'center'
+	},
 	alternativesList: {
-		maxHeight: 400
+		flex: 1
 	},
 	alternativeCard: {
 		flexDirection: 'row',
@@ -270,7 +318,8 @@ const styles = StyleSheet.create({
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 12,
-		flex: 1
+		flex: 1,
+		marginRight: 10
 	},
 	alternativeName: {
 		fontSize: 15,
@@ -278,19 +327,30 @@ const styles = StyleSheet.create({
 		color: '#FFFFFF',
 		flex: 1
 	},
-
-	difficultyBadge: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		gap: 4,
-		paddingHorizontal: 10,
-		paddingVertical: 6,
-		borderRadius: 8
+	alternativeRight: {
+		alignItems: 'flex-end',
+		gap: 6
 	},
-	difficultyText: {
+	typeBadge: {
+		paddingHorizontal: 8,
+		paddingVertical: 3,
+		borderRadius: 6,
+		backgroundColor: 'rgba(175, 255, 43, 0.1)'
+	},
+	typeBadgeText: {
 		fontSize: 11,
 		fontFamily: FontFamily.black,
-		textTransform: 'capitalize'
+		color: '#AFFF2B'
+	},
+	equipmentRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4
+	},
+	equipmentText: {
+		fontSize: 12,
+		fontFamily: FontFamily.bold,
+		color: '#666666'
 	},
 
 	emptyState: {
