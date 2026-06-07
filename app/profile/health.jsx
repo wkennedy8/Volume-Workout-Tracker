@@ -1,5 +1,8 @@
 import { useAuth } from '@/context/AuthContext';
 import { getProfile, upsertProfile } from '@/controllers/profileController';
+import { getRecentWeights } from '@/controllers/weightController';
+import { useUnits } from '@/hooks/useUnits';
+import { displayWeight, weightUnitLabel } from '@/utils/unitsUtils';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -23,9 +26,9 @@ export default function HealthDetailsScreen() {
 
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
+	const { weightUnit } = useUnits();
 
-	const [height, setHeight] = useState('');
-	const [currentWeight, setCurrentWeight] = useState('');
+	const [currentWeight, setCurrentWeight] = useState(null);
 	const [targetWeight, setTargetWeight] = useState('');
 	const [age, setAge] = useState('');
 
@@ -34,10 +37,13 @@ export default function HealthDetailsScreen() {
 
 		(async () => {
 			try {
-				const profile = await getProfile(user.uid);
+				const [profile, recentWeights] = await Promise.all([
+					getProfile(user.uid),
+					getRecentWeights(user.uid, { take: 1 })
+				]);
 
-				setHeight(profile?.height?.toString() || '');
-				setCurrentWeight(profile?.currentWeight?.toString() || '');
+				const latestWeight = recentWeights[0]?.weight ?? profile?.currentWeight ?? null;
+				setCurrentWeight(latestWeight);
 				setTargetWeight(profile?.targetWeight?.toString() || '');
 				setAge(profile?.age?.toString() || '');
 			} catch (error) {
@@ -54,8 +60,6 @@ export default function HealthDetailsScreen() {
 		setSaving(true);
 		try {
 			await upsertProfile(user.uid, {
-				height: height ? parseFloat(height) : null,
-				currentWeight: currentWeight ? parseFloat(currentWeight) : null,
 				targetWeight: targetWeight ? parseFloat(targetWeight) : null,
 				age: age ? parseInt(age) : null
 			});
@@ -103,31 +107,16 @@ export default function HealthDetailsScreen() {
 					{/* Form Fields */}
 					<View style={styles.formSection}>
 						<View style={styles.inputGroup}>
-							<Text style={styles.label}>Height (inches)</Text>
-							<TextInput
-								style={styles.input}
-								value={height}
-								onChangeText={setHeight}
-								placeholder='e.g., 70'
-								placeholderTextColor='#666666'
-								keyboardType='numeric'
-							/>
+							<Text style={styles.label}>Current Weight ({weightUnitLabel(weightUnit)})</Text>
+							<View style={styles.readonlyInput}>
+								<Text style={currentWeight ? styles.readonlyValue : styles.readonlyPlaceholder}>
+									{currentWeight != null ? `${displayWeight(currentWeight, weightUnit)} ${weightUnitLabel(weightUnit)}` : 'No weight logged yet'}
+								</Text>
+							</View>
 						</View>
 
 						<View style={styles.inputGroup}>
-							<Text style={styles.label}>Current Weight (lbs)</Text>
-							<TextInput
-								style={styles.input}
-								value={currentWeight}
-								onChangeText={setCurrentWeight}
-								placeholder='e.g., 180'
-								placeholderTextColor='#666666'
-								keyboardType='numeric'
-							/>
-						</View>
-
-						<View style={styles.inputGroup}>
-							<Text style={styles.label}>Target Weight (lbs)</Text>
+							<Text style={styles.label}>Target Weight ({weightUnitLabel(weightUnit)})</Text>
 							<TextInput
 								style={styles.input}
 								value={targetWeight}
@@ -225,6 +214,25 @@ const styles = StyleSheet.create({
 		fontWeight: '700',
 		color: '#FFFFFF',
 		backgroundColor: '#1A1A1A'
+	},
+	readonlyInput: {
+		height: 50,
+		borderWidth: 1,
+		borderColor: '#2A2A2A',
+		borderRadius: 12,
+		paddingHorizontal: 16,
+		justifyContent: 'center',
+		backgroundColor: '#111111'
+	},
+	readonlyValue: {
+		fontSize: 16,
+		fontWeight: '700',
+		color: '#FFFFFF'
+	},
+	readonlyPlaceholder: {
+		fontSize: 16,
+		fontWeight: '700',
+		color: '#444444'
 	},
 
 	bottomButton: {

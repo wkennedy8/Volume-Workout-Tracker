@@ -1,4 +1,5 @@
 import { FontFamily } from '@/constants/fonts';
+import { displayWeight, weightUnitLabel } from '@/utils/unitsUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { useRef } from 'react';
 import {
@@ -20,7 +21,8 @@ export default function SetRow({
 	removeSet,
 	editSet,
 	normalizeNumberText,
-	previousSet
+	previousSet,
+	weightUnit = 'lbs'
 }) {
 	const swipeableRef = useRef(null);
 
@@ -55,7 +57,7 @@ export default function SetRow({
 
 				{/* PREV COLUMN - shows previous session data */}
 				<Text style={[styles.prevText, { flex: 1 }]}>
-					{previousSet ? `${previousSet.weight}lb x ${previousSet.reps}` : '—'}
+					{previousSet ? `${displayWeight(previousSet.weight, weightUnit)}${weightUnitLabel(weightUnit)} x ${previousSet.reps}` : '—'}
 				</Text>
 
 				{/* Weight Input */}

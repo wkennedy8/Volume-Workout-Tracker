@@ -1,4 +1,5 @@
 import { FontFamily } from '@/constants/fonts';
+import { weightUnitLabel } from '@/utils/unitsUtils';
 import { Ionicons } from '@expo/vector-icons';
 import {
 	Dimensions,
@@ -16,7 +17,8 @@ export default function WeightProgressChart({
 	weightChange,
 	weightRange,
 	onRangeChange,
-	chartData
+	chartData,
+	weightUnit = 'lbs'
 }) {
 	return (
 		<View style={styles.card}>
@@ -35,7 +37,7 @@ export default function WeightProgressChart({
 							]}
 						>
 							{weightChange > 0 ? '+' : ''}
-							{weightChange.toFixed(1)} lbs
+							{weightChange.toFixed(1)} {weightUnitLabel(weightUnit)}
 						</Text>
 					)}
 				</View>

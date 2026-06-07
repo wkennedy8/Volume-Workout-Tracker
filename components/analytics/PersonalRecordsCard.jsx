@@ -1,11 +1,13 @@
 import { FontFamily } from '@/constants/fonts';
+import { displayWeight, weightUnitLabel } from '@/utils/unitsUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
 export default function PersonalRecordsCard({
 	bestVolumeSession,
 	bestSet,
-	mostSetsSession
+	mostSetsSession,
+	weightUnit = 'lbs'
 }) {
 	const hasRecords = bestVolumeSession || bestSet || mostSetsSession;
 
@@ -26,7 +28,7 @@ export default function PersonalRecordsCard({
 							<View style={styles.recordContent}>
 								<Text style={styles.recordLabel}>Highest Volume</Text>
 								<Text style={styles.recordValue}>
-									{Math.round(bestVolumeSession.volume).toLocaleString()} lbs
+									{Math.round(displayWeight(bestVolumeSession.volume, weightUnit)).toLocaleString()} {weightUnitLabel(weightUnit)}
 								</Text>
 								<Text style={styles.recordMeta}>
 									{bestVolumeSession.title} •{' '}
@@ -44,7 +46,7 @@ export default function PersonalRecordsCard({
 							<View style={styles.recordContent}>
 								<Text style={styles.recordLabel}>Best Set</Text>
 								<Text style={styles.recordValue}>
-									{bestSet.weight} lbs × {bestSet.reps} reps
+									{displayWeight(bestSet.weight, weightUnit)} {weightUnitLabel(weightUnit)} × {bestSet.reps} reps
 								</Text>
 								<Text style={styles.recordMeta}>{bestSet.exerciseName}</Text>
 							</View>

@@ -1,7 +1,9 @@
 import SettingsBottomSheet from '@/components/SettingsBottomSheet';
 import WeeklyStreakCard from '@/components/WeeklyStreakCard';
 import { useProfile } from '@/hooks/useProfile';
+import { useUnits } from '@/hooks/useUnits';
 import { useWeightEntries } from '@/hooks/useWeightEntries';
+import { displayWeight, toStoredLbs, weightUnitLabel } from '@/utils/unitsUtils';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -52,11 +54,13 @@ export default function HomeScreen() {
 		[profile.name]
 	);
 	const goal = profile.goal; // 'lose' | 'maintain' | 'gain' | null
+	const targetWeight = profile.targetWeight;
+	const { weightUnit } = useUnits();
 
 	// Prefill today's weight once entries load/update
 	useEffect(() => {
 		const today = getEntryForDate(todayKey);
-		if (today) setWeightText(String(today.weight));
+		if (today) setWeightText(String(displayWeight(today.weight, weightUnit)));
 	}, [todayKey, getEntryForDate]);
 
 	// Save today's weight
@@ -67,11 +71,26 @@ export default function HomeScreen() {
 			return;
 		}
 
-		const weight = Number(trimmed);
+		const weightInLbs = toStoredLbs(trimmed, weightUnit);
 
 		try {
-			await upsertEntry({ dateKey: todayKey, weight });
-			Alert.alert('Saved', "Today's weight has been saved.");
+			await upsertEntry({ dateKey: todayKey, weight: weightInLbs });
+
+			const hitGoal =
+				targetWeight != null &&
+				((goal === 'lose' && weightInLbs <= targetWeight) ||
+					(goal === 'gain' && weightInLbs >= targetWeight));
+
+			if (hitGoal) {
+				const displayTarget = displayWeight(targetWeight, weightUnit);
+				Alert.alert(
+					'Goal Reached! 🎉',
+					`You hit your target weight of ${displayTarget} ${weightUnitLabel(weightUnit)}. Time to set a new goal!`,
+					[{ text: 'Let\'s go!', style: 'default' }]
+				);
+			} else {
+				Alert.alert('Saved', "Today's weight has been saved.");
+			}
 		} catch (e) {
 			Alert.alert('Error', 'Could not save your weight. Please try again.');
 		}
@@ -170,7 +189,7 @@ export default function HomeScreen() {
 								returnKeyType='done'
 							/>
 							<View style={styles.lbsPill}>
-								<Text style={styles.lbsText}>lbs</Text>
+								<Text style={styles.lbsText}>{weightUnitLabel(weightUnit)}</Text>
 							</View>
 						</View>
 
@@ -204,14 +223,14 @@ export default function HomeScreen() {
 								>
 									{weightDelta.delta > 0 && '+'}
 									{weightDelta.delta < 0 && '-'}
-									{toFixed1(Math.abs(weightDelta.delta))} lbs
+									{toFixed1(Math.abs(displayWeight(weightDelta.delta, weightUnit)))} {weightUnitLabel(weightUnit)}
 								</Text>
 
 								<Text style={styles.trackerSubtle}>
 									From {formatDisplayDate(weightDelta.first.date)} (
-									{toFixed1(weightDelta.first.weight)} lbs) to{' '}
+									{toFixed1(displayWeight(weightDelta.first.weight, weightUnit))} {weightUnitLabel(weightUnit)}) to{' '}
 									{formatDisplayDate(weightDelta.latest.date)} (
-									{toFixed1(weightDelta.latest.weight)} lbs)
+									{toFixed1(displayWeight(weightDelta.latest.weight, weightUnit))} {weightUnitLabel(weightUnit)})
 								</Text>
 							</>
 						)}
@@ -244,7 +263,7 @@ export default function HomeScreen() {
 											{formatDisplayDate(item.date)}
 										</Text>
 										<Text style={styles.historyWeight}>
-											{toFixed1(item.weight)} lbs
+											{toFixed1(displayWeight(item.weight, weightUnit))} {weightUnitLabel(weightUnit)}
 										</Text>
 									</View>
 								)}

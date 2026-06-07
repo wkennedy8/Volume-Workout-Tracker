@@ -23,7 +23,9 @@ import { playChime } from '@/utils/timerUtils'
 import { getProgramById } from '@/controllers/programController'
 import { getTargetForWeek } from '@/utils/progressionEngine'
 import { cancelTodaysWorkoutReminder } from '@/utils/notificationService'
+import { displayWeight, toStoredLbs, weightUnitLabel } from '@/utils/unitsUtils'
 import { normalizeExerciseKey, normalizeNumberText } from '@/utils/workoutUtils'
+import { useUnits } from '@/hooks/useUnits'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
 import { useLocalSearchParams, useRouter } from 'expo-router'
@@ -46,6 +48,7 @@ import { FontFamily } from '../../constants/fonts'
 export default function WorkoutSessionScreen() {
 	const router = useRouter()
 	const { user } = useAuth()
+	const { weightUnit } = useUnits()
 	const params = useLocalSearchParams()
 	const templateId = String(params.templateId || 'push')
 	const programId = params.programId ? String(params.programId) : null
@@ -293,7 +296,7 @@ export default function WorkoutSessionScreen() {
 					if (smartWeight !== null) {
 						const exerciseKey = normalizeExerciseKey(exercise.name)
 						smartDefaults[exerciseKey] = {
-							defaultWeight: smartWeight
+							defaultWeight: displayWeight(smartWeight, weightUnit)
 						}
 					}
 				}
@@ -514,7 +517,7 @@ export default function WorkoutSessionScreen() {
 			}))
 		}
 
-		const defaultWeight = smartWeight != null ? String(smartWeight) : ''
+		const defaultWeight = smartWeight != null ? String(displayWeight(smartWeight, weightUnit)) : ''
 
 		setSession((prev) => {
 			if (!prev) return prev
@@ -568,7 +571,7 @@ export default function WorkoutSessionScreen() {
 			}))
 		}
 
-		const defaultWeight = smartWeight != null ? String(smartWeight) : ''
+		const defaultWeight = smartWeight != null ? String(displayWeight(smartWeight, weightUnit)) : ''
 		const numSets = 3
 
 		const newExercise = {
@@ -774,7 +777,21 @@ export default function WorkoutSessionScreen() {
 				}
 			})
 
-			if (user?.uid) firestoreUpsertSession(user.uid, next)
+			if (user?.uid) {
+				// Convert weights to lbs for storage before persisting
+				const sessionToStore = {
+					...next,
+					exercises: next.exercises.map((exercise) => ({
+						...exercise,
+						sets: exercise.sets.map((s) =>
+							s.saved
+								? { ...s, weight: String(toStoredLbs(s.weight, weightUnit)) }
+								: s
+						)
+					}))
+				}
+				firestoreUpsertSession(user.uid, sessionToStore)
+			}
 
 			const updatedExercise = next.exercises[exerciseIndex]
 			const completed = isExerciseCompleted(updatedExercise)
@@ -912,6 +929,7 @@ export default function WorkoutSessionScreen() {
 							addSet={addSet}
 							normalizeNumberText={normalizeNumberText}
 							getPreviousSet={getPreviousSet}
+							weightUnit={weightUnit}
 						/>
 					)}
 					ListFooterComponent={

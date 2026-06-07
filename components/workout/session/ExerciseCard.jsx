@@ -15,7 +15,8 @@ export default function ExerciseCard({
 	editSet,
 	addSet,
 	normalizeNumberText,
-	getPreviousSet
+	getPreviousSet,
+	weightUnit = 'lbs'
 }) {
 	return (
 		<View style={styles.exerciseCard}>
@@ -41,7 +42,9 @@ export default function ExerciseCard({
 					addSet={addSet}
 					normalizeNumberText={normalizeNumberText}
 					getPreviousSet={getPreviousSet}
+					weightUnit={weightUnit}
 				/>
+
 			)}
 		</View>
 	)

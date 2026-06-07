@@ -12,7 +12,8 @@ export default function SetTable({
 	editSet,
 	addSet,
 	normalizeNumberText,
-	getPreviousSet
+	getPreviousSet,
+	weightUnit = 'lbs'
 }) {
 	return (
 		<View style={styles.container}>
@@ -20,7 +21,7 @@ export default function SetTable({
 			<View style={styles.tableHeader}>
 				<Text style={[styles.tableHeaderText, { width: 50 }]}>Set</Text>
 				<Text style={[styles.tableHeaderText, { flex: 1 }]}>Prev</Text>
-				<Text style={[styles.tableHeaderText, { width: 80 }]}>LB</Text>
+				<Text style={[styles.tableHeaderText, { width: 80 }]}>{weightUnit === 'kg' ? 'KG' : 'LB'}</Text>
 				<Text style={[styles.tableHeaderText, { width: 80 }]}>Reps</Text>
 				<View style={{ width: 40 }} />
 			</View>
@@ -40,6 +41,7 @@ export default function SetTable({
 						editSet={editSet}
 						normalizeNumberText={normalizeNumberText}
 						previousSet={prevSet}
+						weightUnit={weightUnit}
 					/>
 				);
 			})}

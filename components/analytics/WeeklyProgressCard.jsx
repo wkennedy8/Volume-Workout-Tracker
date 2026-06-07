@@ -1,11 +1,13 @@
 import { FontFamily } from '@/constants/fonts';
+import { weightUnitLabel } from '@/utils/unitsUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
 export default function WeeklyProgressCard({
 	weeklyStats,
 	weeksToShow,
-	currentWeek
+	currentWeek,
+	weightUnit = 'lbs'
 }) {
 	if (weeksToShow.length === 0) return null;
 
@@ -48,7 +50,7 @@ export default function WeeklyProgressCard({
 									<Text style={styles.weekStatValue}>
 										{Math.round(stats.volume).toLocaleString()}
 									</Text>
-									<Text style={styles.weekStatLabel}>Volume (lbs)</Text>
+									<Text style={styles.weekStatLabel}>Volume ({weightUnitLabel(weightUnit)})</Text>
 								</View>
 
 								<View style={styles.weekStatItem}>

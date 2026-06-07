@@ -15,6 +15,7 @@ export function useProfile() {
 		name: '',
 		email: '',
 		goal: null,
+		targetWeight: null,
 		currentWeight: null,
 		profilePhotoUri: null
 	});
@@ -41,6 +42,7 @@ export function useProfile() {
 					setProfile({
 						profilePhotoUri: data.profilePhotoUri || null,
 						goal: data.goal || null,
+						targetWeight: data.targetWeight ?? null,
 						name: data.name || ''
 					});
 				},

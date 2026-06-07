@@ -1,4 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
+import { useUnits } from '@/hooks/useUnits';
+import { displayWeight } from '@/utils/unitsUtils';
 import { CARDIO_TYPES, getAllCardio } from '@/controllers/cardioController';
 import { getUserWorkoutPlan } from '@/controllers/plansController';
 import { getProgramWeek } from '@/controllers/programProgressController';
@@ -39,6 +41,7 @@ import {
 
 export default function AnalyticsScreen() {
 	const { user } = useAuth();
+	const { weightUnit } = useUnits();
 	const [loading, setLoading] = useState(true);
 
 	// Subscription gate — null = checking, true/false = resolved
@@ -223,12 +226,16 @@ export default function AnalyticsScreen() {
 	});
 
 	const sampledWeights = sampleWeights(filteredWeights, weightRange);
-	const chartData = prepareChartData(sampledWeights);
+	const displayedWeights = sampledWeights.map((w) => ({
+		...w,
+		weight: displayWeight(w.weight, weightUnit)
+	}));
+	const chartData = prepareChartData(displayedWeights);
 
 	const weightChange =
-		sampledWeights.length >= 2
-			? sampledWeights[0].weight -
-				sampledWeights[sampledWeights.length - 1].weight
+		displayedWeights.length >= 2
+			? displayedWeights[0].weight -
+				displayedWeights[displayedWeights.length - 1].weight
 			: 0;
 
 	// Determine which weeks to show
@@ -309,11 +316,12 @@ export default function AnalyticsScreen() {
 
 				{/* Weight Progress Chart */}
 				<WeightProgressChart
-					sampledWeights={sampledWeights}
+					sampledWeights={displayedWeights}
 					weightChange={weightChange}
 					weightRange={weightRange}
 					onRangeChange={setWeightRange}
 					chartData={chartData}
+					weightUnit={weightUnit}
 				/>
 
 				{/* Overall Stats */}
@@ -331,6 +339,7 @@ export default function AnalyticsScreen() {
 					weeklyStats={weeklyStats}
 					weeksToShow={weeksToShow}
 					currentWeek={currentWeek}
+					weightUnit={weightUnit}
 				/>
 
 				{/* Cardio Stats */}
@@ -347,6 +356,7 @@ export default function AnalyticsScreen() {
 					bestVolumeSession={bestVolumeSession}
 					bestSet={bestSet}
 					mostSetsSession={mostSetsSession}
+					weightUnit={weightUnit}
 				/>
 			</ScrollView>
 		</SafeAreaView>
