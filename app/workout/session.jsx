@@ -22,6 +22,7 @@ import {
 import { playChime } from '@/utils/timerUtils'
 import { getProgramById } from '@/controllers/programController'
 import { getTargetForWeek } from '@/utils/progressionEngine'
+import { cancelTodaysWorkoutReminder } from '@/utils/notificationService'
 import { normalizeExerciseKey, normalizeNumberText } from '@/utils/workoutUtils'
 import { Ionicons } from '@expo/vector-icons'
 import * as Haptics from 'expo-haptics'
@@ -810,6 +811,7 @@ export default function WorkoutSessionScreen() {
 		try {
 			const result = await markSessionCompleted(user.uid, session.id)
 
+			cancelTodaysWorkoutReminder()
 			stopRestTimer()
 
 			if (result?.weekAdvancement?.programCompleted) {

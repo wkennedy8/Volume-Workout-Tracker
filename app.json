@@ -37,6 +37,14 @@
 		"plugins": [
 			"expo-router",
 			[
+				"expo-notifications",
+				{
+					"icon": "./assets/images/icon-volume.png",
+					"color": "#AFFF2B",
+					"iosDisplayInForeground": true
+				}
+			],
+			[
 				"expo-splash-screen",
 				{
 					"backgroundColor": "#141814",

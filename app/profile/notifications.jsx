@@ -1,5 +1,9 @@
 import { useAuth } from '@/context/AuthContext';
 import { getProfile, upsertProfile } from '@/controllers/profileController';
+import {
+	cancelAllWorkoutReminders,
+	scheduleWorkoutReminders
+} from '@/utils/notificationService';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -35,10 +39,10 @@ export default function NotificationsScreen() {
 				const profile = await getProfile(user.uid);
 				const notifications = profile?.notifications || {};
 
-				setWorkoutReminders(notifications.workoutReminders && true);
-				setProgressUpdates(notifications.progressUpdates && true);
-				setAchievements(notifications.achievements && true);
-				setWeeklyReports(notifications.weeklyReports && false);
+				setWorkoutReminders(notifications.workoutReminders ?? true);
+				setProgressUpdates(notifications.progressUpdates ?? true);
+				setAchievements(notifications.achievements ?? true);
+				setWeeklyReports(notifications.weeklyReports ?? false);
 			} catch (error) {
 				console.error('Failed to load notifications:', error);
 			} finally {
@@ -60,6 +64,12 @@ export default function NotificationsScreen() {
 					weeklyReports
 				}
 			});
+
+			if (workoutReminders) {
+				await scheduleWorkoutReminders(user.uid);
+			} else {
+				await cancelAllWorkoutReminders();
+			}
 
 			Alert.alert('Success', 'Notification preferences updated');
 			router.back();

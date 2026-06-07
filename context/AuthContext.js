@@ -1,4 +1,5 @@
 import { getProfile } from '@/controllers/profileController';
+import { initNotificationsForUser } from '@/utils/notificationService';
 import { useRouter, useSegments } from 'expo-router';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
@@ -43,6 +44,7 @@ export function AuthProvider({ children }) {
 				});
 				setUserIsAdmin(adminStatus);
 				setOnboardingCompleted(hasCompletedOnboarding);
+				initNotificationsForUser(firebaseUser.uid);
 			} else {
 				setUser(null);
 				setUserIsAdmin(false);
