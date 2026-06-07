@@ -280,9 +280,7 @@ export default function HomeScreen() {
 
 						<TouchableOpacity
 							style={styles.viewMoreButton}
-							onPress={() =>
-								Alert.alert('History', 'Full history screen not wired yet.')
-							}
+							onPress={() => router.push('/weight-history')}
 							activeOpacity={0.85}
 						>
 							<Text style={styles.viewMoreText}>View More</Text>

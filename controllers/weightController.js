@@ -1,6 +1,7 @@
 import { db } from '@/lib/firebase';
 import {
 	collection,
+	deleteDoc,
 	doc,
 	getDoc,
 	getDocs,
@@ -31,6 +32,11 @@ export async function getWeightByDate(uid, dateKey) {
  * Upsert weight entry for a dateKey.
  * doc id == dateKey, so writes are deterministic.
  */
+export async function deleteWeight(uid, dateKey) {
+	const ref = doc(db, 'users', uid, 'weights', dateKey);
+	await deleteDoc(ref);
+}
+
 export async function upsertWeight(uid, { dateKey, weight }) {
 	const ref = doc(db, 'users', uid, 'weights', dateKey);
 	await setDoc(

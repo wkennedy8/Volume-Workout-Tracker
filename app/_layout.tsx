@@ -69,6 +69,7 @@ export default function RootLayout() {
 							<Stack.Screen name='(tabs)' options={{ headerShown: false }} />
 							<Stack.Screen name='workout' options={{ headerShown: false }} />
 							<Stack.Screen name='profile' options={{ headerShown: false }} />
+							<Stack.Screen name='weight-history' options={{ headerShown: false }} />
 							<Stack.Screen
 								name='program-builder'
 								options={{ headerShown: false, gestureEnabled: false }}
