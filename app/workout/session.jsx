@@ -2,7 +2,6 @@ import AddExerciseModal from '@/components/AddExerciseModal'
 import SwapExerciseModal from '@/components/SwapExerciseModal'
 import ExerciseCard from '@/components/workout/session/ExerciseCard'
 import FinishWorkoutButton from '@/components/workout/session/FinishWorkoutButton'
-import RestTimerModal from '@/components/workout/session/RestTimerModal'
 import SessionHeader from '@/components/workout/session/SessionHeader'
 import { useAuth } from '@/context/AuthContext'
 import { getSmartDefaultWeight } from '@/controllers/exerciseDefaultsController'
@@ -33,7 +32,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
 	Alert,
 	AppState,
-	FlatList,
 	KeyboardAvoidingView,
 	Platform,
 	StyleSheet,
@@ -67,10 +65,10 @@ export default function WorkoutSessionScreen() {
 	const [template, setTemplate] = useState(null)
 	const [previousSessionData, setPreviousSessionData] = useState({})
 	const [finishing, setFinishing] = useState(false)
+	const [activeExerciseIndex, setActiveExerciseIndex] = useState(0)
 
 	// Rest timer state
 	const [restVisible, setRestVisible] = useState(false)
-	const [restMinimized, setRestMinimized] = useState(false)
 	const [restTimerEndTime, setRestTimerEndTime] = useState(null)
 	const [restSeconds, setRestSeconds] = useState(0)
 	const [restPaused, setRestPaused] = useState(false)
@@ -399,7 +397,6 @@ export default function WorkoutSessionScreen() {
 		setRestTimerEndTime(null)
 		setRestSeconds(0)
 		setRestVisible(false)
-		setRestMinimized(false)
 		setRestPaused(false)
 		setPausedAtSeconds(0)
 	}
@@ -864,6 +861,17 @@ export default function WorkoutSessionScreen() {
 		)
 	}
 
+	const currentExercise = session.exercises[activeExerciseIndex]
+	const nextExercise = session.exercises[activeExerciseIndex + 1] ?? null
+
+	const goToPrev = () => setActiveExerciseIndex((i) => Math.max(0, i - 1))
+	const goToNext = () =>
+		setActiveExerciseIndex((i) => Math.min(session.exercises.length - 1, i + 1))
+
+	const restLabel = restSeconds > 0
+		? `${Math.floor(restSeconds / 60)}:${String(restSeconds % 60).padStart(2, '0')}`
+		: null
+
 	return (
 		<SafeAreaView style={styles.safe}>
 			<KeyboardAvoidingView
@@ -872,77 +880,103 @@ export default function WorkoutSessionScreen() {
 			>
 				<SessionHeader
 					session={session}
-					currentWeek={currentWeek}
-					today={today}
+					currentExerciseIndex={activeExerciseIndex}
+					totalExercises={session.exercises.length}
 				/>
 
-				<RestTimerModal
-					visible={restVisible && !restMinimized}
-					restSeconds={restSeconds}
-					restContext={restContext}
-					restPaused={restPaused}
-					progress={progress}
-					onSkip={skipRest}
-					onTogglePause={togglePause}
-					onAddTime={addRest}
-					onSubtractTime={subtractRest}
-					onMinimize={() => setRestMinimized(true)}
-				/>
-				{/* Minimized rest timer pill */}
-				{restVisible && restMinimized && (
+				{/* Nav row */}
+				<View style={styles.navRow}>
 					<TouchableOpacity
-						style={styles.restPill}
-						onPress={() => setRestMinimized(false)}
-						activeOpacity={0.85}
+						style={[styles.navBtn, activeExerciseIndex === 0 && styles.navBtnDisabled]}
+						onPress={goToPrev}
+						disabled={activeExerciseIndex === 0}
+						activeOpacity={0.7}
 					>
-						<View style={styles.restPillDot} />
-						<Text style={styles.restPillTimer}>
-							{`${Math.floor(restSeconds / 60)}:${String(restSeconds % 60).padStart(2, '0')}`}
-						</Text>
-						<Text style={styles.restPillLabel}>Rest Timer</Text>
-						<TouchableOpacity
-							style={styles.restPillSkipBtn}
-							onPress={skipRest}
-							hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-						>
-							<Text style={styles.restPillSkipText}>Skip</Text>
-						</TouchableOpacity>
+						<Ionicons name='chevron-back' size={18} color={activeExerciseIndex === 0 ? '#444' : '#FFFFFF'} />
 					</TouchableOpacity>
+					<TouchableOpacity
+						style={styles.addExerciseNavBtn}
+						onPress={() => setAddModalVisible(true)}
+						activeOpacity={0.8}
+					>
+						<Ionicons name='add' size={16} color='#AFFF2B' />
+						<Text style={styles.addExerciseNavText}>Add Exercise</Text>
+					</TouchableOpacity>
+					<TouchableOpacity
+						style={[styles.navBtn, activeExerciseIndex === session.exercises.length - 1 && styles.navBtnDisabled]}
+						onPress={goToNext}
+						disabled={activeExerciseIndex === session.exercises.length - 1}
+						activeOpacity={0.7}
+					>
+						<Ionicons name='chevron-forward' size={18} color={activeExerciseIndex === session.exercises.length - 1 ? '#444' : '#FFFFFF'} />
+					</TouchableOpacity>
+				</View>
+
+				<ExerciseCard
+					exercise={currentExercise}
+					exerciseIndex={activeExerciseIndex}
+					totalExercises={session.exercises.length}
+					isCompleted={isExerciseCompleted(currentExercise)}
+					onOpenSwap={openSwapModal}
+					removeExercise={removeExercise}
+					updateSetField={updateSetField}
+					saveSet={saveSet}
+					removeSet={removeSet}
+					editSet={editSet}
+					addSet={addSet}
+					normalizeNumberText={normalizeNumberText}
+					getPreviousSet={getPreviousSet}
+					weightUnit={weightUnit}
+				/>
+
+				{/* Inline rest timer banner */}
+				{restVisible && restLabel && (
+					<View style={styles.restBanner}>
+						<Text style={styles.restBannerLabel}>REST TIMER</Text>
+						<Text style={styles.restBannerTime}>{restLabel}</Text>
+						<View style={styles.restBannerControls}>
+							<TouchableOpacity
+								style={styles.restControlBtn}
+								onPress={() => subtractRest(30)}
+								activeOpacity={0.7}
+							>
+								<Text style={styles.restControlText}>−30s</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={styles.restControlBtn}
+								onPress={togglePause}
+								activeOpacity={0.7}
+							>
+								<Text style={styles.restControlText}>{restPaused ? 'Resume' : 'Pause'}</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={styles.restControlBtn}
+								onPress={() => addRest(30)}
+								activeOpacity={0.7}
+							>
+								<Text style={styles.restControlText}>+30s</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								style={[styles.restControlBtn, styles.restSkipBtn]}
+								onPress={skipRest}
+								activeOpacity={0.7}
+							>
+								<Text style={styles.restSkipText}>Skip</Text>
+							</TouchableOpacity>
+						</View>
+					</View>
 				)}
 
-				<FlatList
-					data={session.exercises}
-					keyExtractor={(item, idx) => `${item.name}-${idx}`}
-					contentContainerStyle={{ paddingBottom: 98 }}
-					renderItem={({ item, index }) => (
-						<ExerciseCard
-							exercise={item}
-							exerciseIndex={index}
-							isCompleted={isExerciseCompleted(item)}
-							onToggleExpanded={toggleExpanded}
-							onOpenSwap={openSwapModal}
-							removeExercise={removeExercise}
-							updateSetField={updateSetField}
-							saveSet={saveSet}
-							removeSet={removeSet}
-							editSet={editSet}
-							addSet={addSet}
-							normalizeNumberText={normalizeNumberText}
-							getPreviousSet={getPreviousSet}
-							weightUnit={weightUnit}
-						/>
-					)}
-					ListFooterComponent={
-						<TouchableOpacity
-							style={styles.addExerciseBtn}
-							onPress={() => setAddModalVisible(true)}
-							activeOpacity={0.8}
-						>
-							<Ionicons name='add-circle-outline' size={20} color='#AFFF2B' />
-							<Text style={styles.addExerciseBtnText}>Add Exercise</Text>
-						</TouchableOpacity>
-					}
-				/>
+				{/* Up Next strip */}
+				{nextExercise && (
+					<TouchableOpacity style={styles.upNext} onPress={goToNext} activeOpacity={0.8}>
+						<View style={styles.upNextLeft}>
+							<Text style={styles.upNextLabel}>UP NEXT</Text>
+							<Text style={styles.upNextName}>{nextExercise.name}</Text>
+						</View>
+						<Ionicons name='chevron-forward' size={18} color='#666666' />
+					</TouchableOpacity>
+				)}
 
 				<SwapExerciseModal
 					visible={swapModalVisible}
@@ -975,63 +1009,114 @@ const styles = StyleSheet.create({
 	container: { flex: 1, paddingHorizontal: 18, paddingTop: 8 },
 	loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 	loadingText: { fontSize: 14, color: '#999999', fontFamily: FontFamily.black },
-	restPill: {
+
+	navRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		gap: 10,
+		justifyContent: 'space-between',
+		marginBottom: 12
+	},
+	navBtn: {
+		width: 38,
+		height: 38,
+		borderRadius: 12,
 		backgroundColor: '#1A1A1A',
 		borderWidth: 1,
 		borderColor: '#333333',
-		borderRadius: 14,
-		paddingHorizontal: 14,
-		paddingVertical: 10,
-		marginBottom: 8
+		alignItems: 'center',
+		justifyContent: 'center'
 	},
-	restPillDot: {
-		width: 8,
-		height: 8,
-		borderRadius: 4,
-		backgroundColor: '#AFFF2B'
+	navBtnDisabled: {
+		borderColor: '#222222'
 	},
-	restPillTimer: {
-		fontSize: 20,
-		fontFamily: FontFamily.black,
-		color: '#AFFF2B'
-	},
-	restPillLabel: {
-		flex: 1,
-		fontSize: 13,
-		fontFamily: FontFamily.black,
-		color: '#666666'
-	},
-	restPillSkipBtn: {
-		paddingHorizontal: 12,
-		paddingVertical: 6,
-		borderRadius: 8,
-		backgroundColor: '#2A2A2A'
-	},
-	restPillSkipText: {
-		fontSize: 12,
-		fontFamily: FontFamily.black,
-		color: '#FFFFFF'
-	},
-	addExerciseBtn: {
+	addExerciseNavBtn: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		justifyContent: 'center',
-		gap: 8,
-		marginTop: 4,
-		marginBottom: 16,
-		paddingVertical: 14,
-		borderRadius: 14,
+		gap: 6,
+		paddingHorizontal: 14,
+		paddingVertical: 9,
+		borderRadius: 12,
 		borderWidth: 1,
-		borderColor: '#AFFF2B',
-		borderStyle: 'dashed',
-		backgroundColor: 'rgba(175, 255, 43, 0.05)'
+		borderColor: 'rgba(175,255,43,0.3)',
+		backgroundColor: 'rgba(175,255,43,0.05)'
 	},
-	addExerciseBtnText: {
-		fontSize: 15,
+	addExerciseNavText: {
+		fontSize: 13,
 		fontFamily: FontFamily.black,
 		color: '#AFFF2B'
+	},
+
+	restBanner: {
+		backgroundColor: '#111F00',
+		borderWidth: 1,
+		borderColor: '#2A4A00',
+		borderRadius: 16,
+		paddingHorizontal: 20,
+		paddingTop: 14,
+		paddingBottom: 12,
+		marginTop: 10,
+		gap: 10
+	},
+	restBannerLabel: {
+		fontSize: 11,
+		fontFamily: FontFamily.black,
+		color: '#7AB520',
+		letterSpacing: 1.5
+	},
+	restBannerTime: {
+		fontSize: 36,
+		fontFamily: FontFamily.black,
+		color: '#AFFF2B',
+		lineHeight: 40
+	},
+	restBannerControls: {
+		flexDirection: 'row',
+		gap: 8
+	},
+	restControlBtn: {
+		flex: 1,
+		paddingVertical: 8,
+		borderRadius: 10,
+		backgroundColor: 'rgba(175,255,43,0.08)',
+		borderWidth: 1,
+		borderColor: 'rgba(175,255,43,0.15)',
+		alignItems: 'center'
+	},
+	restControlText: {
+		fontSize: 13,
+		fontFamily: FontFamily.black,
+		color: '#AFFF2B'
+	},
+	restSkipBtn: {
+		backgroundColor: 'rgba(255,255,255,0.05)',
+		borderColor: 'rgba(255,255,255,0.1)'
+	},
+	restSkipText: {
+		fontSize: 13,
+		fontFamily: FontFamily.black,
+		color: '#888888'
+	},
+
+	upNext: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		backgroundColor: '#0D0D0D',
+		borderRadius: 14,
+		paddingHorizontal: 18,
+		paddingVertical: 14,
+		marginTop: 10
+	},
+	upNextLeft: { gap: 2 },
+	upNextLabel: {
+		fontSize: 11,
+		fontFamily: FontFamily.black,
+		color: '#555555',
+		letterSpacing: 1.2
+	},
+	upNextName: {
+		fontSize: 16,
+		fontFamily: FontFamily.black,
+		color: '#FFFFFF'
 	}
 })

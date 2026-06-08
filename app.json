@@ -16,7 +16,8 @@
 			"bundleIdentifier": "com.wpkdigital.volume",
 			"buildNumber": "1",
 			"infoPlist": {
-				"ITSAppUsesNonExemptEncryption": false
+				"ITSAppUsesNonExemptEncryption": false,
+				"NSUserNotificationUsageDescription": "Volume sends workout reminders on your scheduled training days to help you stay consistent."
 			}
 		},
 		"android": {
