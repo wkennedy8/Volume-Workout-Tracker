@@ -1,4 +1,4 @@
-# 💪 FitTrack - Personal Fitness Tracker
+# 💪 Volume - Workout Fitness Tracker
 
 A comprehensive React Native fitness tracking application built with Expo, Firebase, and modern mobile UI/UX principles.
 
@@ -11,19 +11,12 @@ A comprehensive React Native fitness tracking application built with Expo, Fireb
   - Personal information (Name, Email)
   - Fitness goal selection (Lose/Maintain/Gain weight)
   - Current weight entry
-  - Smart macro nutrient calculation
   - Workout program selection
   - Optional profile photo upload
-- **Smart Macro Calculation**
-  - Auto-calculated based on weight and goals
-  - Customizable protein, carbs, and fats
-  - Real-time calorie tracking
-  - Goal-based calorie adjustments (+/- 250 cal)
 
 #### Workout Management
 - **Multiple Workout Programs**
   - Push/Pull/Legs (6-day split)
-  - Upper/Lower (4-day split)
   - Full Body (3-day split)
   - Bro Split (5-day split)
 - **Dynamic Workout Scheduling**
@@ -82,12 +75,9 @@ A comprehensive React Native fitness tracking application built with Expo, Fireb
 - **Health Details**
   - Current weight
   - Target weight
-  - Height
   - Age
-- **Goals & Nutrition**
+- **Goals**
   - Fitness goal management
-  - Macro nutrient targets
-  - Daily calorie goals
 - **Preferences**
   - Weight units (lbs/kg)
   - Distance units (miles/km)
@@ -307,21 +297,6 @@ users/{uid}
 ```
 
 ## 🧪 Key Features Implementation
-
-### Macro Calculation Algorithm
-```javascript
-// Base calories
-totalCalories = weight × 14.5
-
-// Goal adjustment
-if (goal === 'lose') totalCalories -= 500
-if (goal === 'gain') totalCalories += 250
-
-// Macros
-protein = weight × 1g (× 4 cal/g)
-fats = weight × 0.35g (× 9 cal/g)
-carbs = (totalCalories - protein_cal - fats_cal) ÷ 4
-```
 
 ### Streak Calculation
 - Counts consecutive days with completed workouts
