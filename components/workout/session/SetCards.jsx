@@ -1,10 +1,27 @@
 import { FontFamily } from '@/constants/fonts'
 import { displayWeight } from '@/utils/unitsUtils'
-import { Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { Alert, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
 
-function SavedSetCard({ set, weightUnit, onEdit }) {
+function SavedSetCard({ set, weightUnit, onEdit, onRemove }) {
+	function handleLongPress() {
+		Alert.alert(
+			'Delete Set',
+			`Delete set ${set.setIndex} (${displayWeight(set.weight, weightUnit)} × ${set.reps} reps)?`,
+			[
+				{ text: 'Cancel', style: 'cancel' },
+				{ text: 'Delete', style: 'destructive', onPress: onRemove }
+			]
+		)
+	}
+
 	return (
-		<TouchableOpacity style={styles.savedCard} onPress={() => onEdit(set.setIndex)} activeOpacity={0.7}>
+		<TouchableOpacity
+			style={styles.savedCard}
+			onPress={() => onEdit(set.setIndex)}
+			onLongPress={handleLongPress}
+			delayLongPress={400}
+			activeOpacity={0.7}
+		>
 			<Text style={styles.savedWeight}>{displayWeight(set.weight, weightUnit)}</Text>
 			<Text style={styles.savedReps}>{set.reps} reps</Text>
 		</TouchableOpacity>
@@ -93,11 +110,7 @@ export default function SetCards({
 
 	return (
 		<View style={styles.container}>
-			<ScrollView
-				horizontal
-				showsHorizontalScrollIndicator={false}
-				contentContainerStyle={styles.scroll}
-			>
+			<View style={styles.wrap}>
 				{sets.map((set, i) => {
 					if (set.saved) {
 						return (
@@ -106,6 +119,7 @@ export default function SetCards({
 								set={set}
 								weightUnit={weightUnit}
 								onEdit={(idx) => editSet(exerciseIndex, idx)}
+								onRemove={() => removeSet(exerciseIndex, set.setIndex)}
 							/>
 						)
 					}
@@ -137,14 +151,14 @@ export default function SetCards({
 				<TouchableOpacity style={styles.addCard} onPress={() => addSet(exerciseIndex)} activeOpacity={0.7}>
 					<Text style={styles.addCardText}>+</Text>
 				</TouchableOpacity>
-			</ScrollView>
+			</View>
 		</View>
 	)
 }
 
 const styles = StyleSheet.create({
 	container: { marginTop: 14 },
-	scroll: { paddingHorizontal: 2, gap: 10, paddingBottom: 4 },
+	wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
 
 	savedCard: {
 		width: 90,

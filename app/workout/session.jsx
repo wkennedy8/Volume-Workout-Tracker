@@ -3,6 +3,7 @@ import SwapExerciseModal from '@/components/SwapExerciseModal'
 import ExerciseCard from '@/components/workout/session/ExerciseCard'
 import FinishWorkoutButton from '@/components/workout/session/FinishWorkoutButton'
 import SessionHeader from '@/components/workout/session/SessionHeader'
+import SetLoggedOverlay from '@/components/workout/session/SetLoggedOverlay'
 import { useAuth } from '@/context/AuthContext'
 import { getSmartDefaultWeight } from '@/controllers/exerciseDefaultsController'
 import {
@@ -66,6 +67,8 @@ export default function WorkoutSessionScreen() {
 	const [previousSessionData, setPreviousSessionData] = useState({})
 	const [finishing, setFinishing] = useState(false)
 	const [activeExerciseIndex, setActiveExerciseIndex] = useState(0)
+	const [setLoggedData, setSetLoggedData] = useState(null)
+	const [setLoggedVisible, setSetLoggedVisible] = useState(false)
 
 	// Rest timer state
 	const [restVisible, setRestVisible] = useState(false)
@@ -675,11 +678,6 @@ export default function WorkoutSessionScreen() {
 				return prev
 			}
 
-			const setToRemove = exercise.sets.find((s) => s.setIndex === setIndex)
-			if (setToRemove?.saved) {
-				Alert.alert('Cannot remove', 'Cannot remove a saved set.')
-				return prev
-			}
 
 			const next = {
 				...prev,
@@ -792,6 +790,23 @@ export default function WorkoutSessionScreen() {
 
 			const updatedExercise = next.exercises[exerciseIndex]
 			const completed = isExerciseCompleted(updatedExercise)
+
+			// Compute stats for the overlay
+			const savedSets = updatedExercise.sets.filter((s) => s.saved)
+			const totalVolume = savedSets.reduce(
+				(sum, s) => sum + Number(s.weight || 0) * Number(s.reps || 0),
+				0
+			)
+			const setVolume = Number(set.weight || 0) * Number(set.reps || 0)
+			setSetLoggedData({
+				weight: displayWeight(set.weight, weightUnit),
+				reps: set.reps,
+				totalSets: savedSets.length,
+				totalVolume: Math.round(totalVolume),
+				setVolume: Math.round(setVolume),
+				weightUnit
+			})
+			setSetLoggedVisible(true)
 
 			if (completed) {
 				startRestTimer({
@@ -999,6 +1014,12 @@ export default function WorkoutSessionScreen() {
 				/>
 
 				<FinishWorkoutButton onFinish={finishWorkout} disabled={finishing} />
+
+				<SetLoggedOverlay
+					visible={setLoggedVisible}
+					data={setLoggedData}
+					onDismiss={() => setSetLoggedVisible(false)}
+				/>
 			</KeyboardAvoidingView>
 		</SafeAreaView>
 	)
