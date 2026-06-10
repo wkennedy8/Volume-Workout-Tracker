@@ -30,14 +30,15 @@ export const SPLIT_CONFIG = {
 			{
 				id: 'pull',
 				label: 'Pull',
-				muscleGroups: ['Back', 'Biceps'],
+				muscleGroups: ['Back', 'Biceps', 'Shoulders'],
 				compoundSuggestions: {
 					Back: { min: 2, max: 3, label: '2–3 compound back movements' },
 					Biceps: { min: 1, max: 1, label: '1 compound bicep movement' }
 				},
 				accessorySuggestions: {
 					Back: { min: 1, max: 2, label: '1–2 back accessories' },
-					Biceps: { min: 1, max: 2, label: '1–2 bicep accessories' }
+					Biceps: { min: 1, max: 2, label: '1–2 bicep accessories' },
+					Shoulders: { min: 1, max: 2, label: '1–2 rear delt accessories' }
 				}
 			},
 			{

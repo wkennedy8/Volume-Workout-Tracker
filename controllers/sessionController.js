@@ -399,7 +399,7 @@ export function buildEmptySession({
 			? parseInt(ex.sets.split('-')[0], 10)
 			: parseInt(ex.sets, 10)
 
-		const numSets = prevSetsCountMap?.[exKey] ?? templateNumSets
+		const numSets = templateNumSets
 
 		const sets = Array.from({ length: numSets }, (_, i) => ({
 			setIndex: i + 1,

@@ -36,7 +36,12 @@ export default function ExercisePickerSheet({
 
 		getExercisesForMuscleGroups(muscleGroups)
 			.then((all) => {
-				const filtered = compoundOnly ? all.filter((e) => e.isCompound) : all.filter((e) => !e.isCompound);
+				// core mode shows all exercises for the group regardless of compound flag
+				const filtered = compoundOnly === null
+					? all
+					: compoundOnly
+					? all.filter((e) => e.isCompound)
+					: all.filter((e) => !e.isCompound);
 				setExercises(filtered);
 			})
 			.catch(console.warn)
@@ -65,7 +70,7 @@ export default function ExercisePickerSheet({
 				{/* Header */}
 				<View style={styles.header}>
 					<Text style={styles.headerTitle}>
-						{compoundOnly ? 'Compound Movements' : 'Accessory Movements'}
+						{compoundOnly === null ? 'Core & Abs' : compoundOnly ? 'Compound Movements' : 'Accessory Movements'}
 					</Text>
 					<TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
 						<Ionicons name='close' size={24} color='#FFFFFF' />

@@ -41,8 +41,8 @@ export function getTodayWorkoutFromProgram(program, today = new Date()) {
 		const target = getTargetForWeek(ex, currentWeek, cycleLength);
 		return {
 			name: ex.name,
-			sets: String(target.sets),
-			reps: target.reps,
+			sets: String(ex.sets ?? target.sets),
+			reps: ex.reps ?? target.reps,
 			muscleGroup: ex.muscleGroup ?? '',
 			isCompound: ex.isCompound ?? false,
 			exerciseId: ex.exerciseId ?? ''

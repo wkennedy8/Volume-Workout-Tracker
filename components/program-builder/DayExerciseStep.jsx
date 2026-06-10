@@ -24,7 +24,7 @@ export default function DayExerciseStep({
 	totalDays,
 	nextDayLabel
 }) {
-	const [phase, setPhase] = useState('compound');
+	const [phase, setPhase] = useState('compound'); // 'compound' | 'accessory' | 'core'
 	const [pickerTarget, setPickerTarget] = useState(null);
 
 	// Local state for instant UI feedback — synced from props on day change
@@ -44,8 +44,9 @@ export default function DayExerciseStep({
 		onChangeRef.current(next);
 	}
 
-	const compoundExercises = localExercises.filter((e) => e.isCompound);
-	const accessoryExercises = localExercises.filter((e) => !e.isCompound);
+	const compoundExercises = localExercises.filter((e) => e.isCompound && e.muscleGroup !== 'Core');
+	const accessoryExercises = localExercises.filter((e) => !e.isCompound && e.muscleGroup !== 'Core');
+	const coreExercises = localExercises.filter((e) => e.muscleGroup === 'Core');
 
 	const muscleGroupsWithNoCompound = dayConfig.muscleGroups.filter(
 		(mg) => !compoundExercises.some((e) => e.muscleGroup === mg)
@@ -129,28 +130,32 @@ export default function DayExerciseStep({
 			return;
 		}
 
-		// Hard requirement: a day must have at least one exercise
-		if (localExercises.length === 0) {
-			Alert.alert(
-				'Add at least one exercise',
-				`${dayConfig.label} Day needs at least one movement before you can continue.`,
-				[{ text: 'OK' }]
-			);
+		if (phase === 'accessory') {
+			if (localExercises.filter((e) => e.muscleGroup !== 'Core').length === 0) {
+				Alert.alert(
+					'Add at least one exercise',
+					`${dayConfig.label} Day needs at least one movement before you can continue.`,
+					[{ text: 'OK' }]
+				);
+				return;
+			}
+			const hasMinAccessories = accessoryExercises.length >= 2;
+			if (!hasMinAccessories) {
+				Alert.alert(
+					'Few accessories',
+					'We suggest at least 2 accessory movements. Continue anyway?',
+					[
+						{ text: 'Add More', style: 'cancel' },
+						{ text: 'Continue', onPress: () => setPhase('core') }
+					]
+				);
+				return;
+			}
+			setPhase('core');
 			return;
 		}
 
-		const hasMinAccessories = accessoryExercises.length >= 2;
-		if (!hasMinAccessories) {
-			Alert.alert(
-				'Few accessories',
-				'We suggest at least 2 accessory movements. Continue anyway?',
-				[
-					{ text: 'Add More', style: 'cancel' },
-					{ text: 'Continue', onPress: onNext }
-				]
-			);
-			return;
-		}
+		// core phase — optional, just advance
 		onNext();
 	}
 
@@ -208,7 +213,10 @@ export default function DayExerciseStep({
 		[exercises]
 	);
 
-	const displayedExercises = phase === 'compound' ? compoundExercises : accessoryExercises;
+	const displayedExercises =
+		phase === 'compound' ? compoundExercises :
+		phase === 'accessory' ? accessoryExercises :
+		coreExercises;
 
 	return (
 		<SafeAreaView style={styles.container} edges={['bottom']}>
@@ -221,7 +229,11 @@ export default function DayExerciseStep({
 				{/* Header */}
 				<TouchableOpacity
 					style={styles.back}
-					onPress={phase === 'accessory' ? () => setPhase('compound') : onBack}
+					onPress={
+						phase === 'core' ? () => setPhase('accessory') :
+						phase === 'accessory' ? () => setPhase('compound') :
+						onBack
+					}
 				>
 					<Ionicons name='chevron-back' size={26} color='#AFFF2B' />
 				</TouchableOpacity>
@@ -236,12 +248,14 @@ export default function DayExerciseStep({
 				</View>
 
 				<Text style={styles.title}>
-					{phase === 'compound' ? 'Compound Movements' : 'Accessory Movements'}
+					{phase === 'compound' ? 'Compound Movements' :
+					 phase === 'accessory' ? 'Accessory Movements' :
+					 'Core & Abs'}
 				</Text>
 				<Text style={styles.subtitle}>
-					{phase === 'compound'
-						? 'Choose your heavy, multi-joint movements'
-						: 'Add isolation and accessory work'}
+					{phase === 'compound' ? 'Choose your heavy, multi-joint movements' :
+					 phase === 'accessory' ? 'Add isolation and accessory work' :
+					 'Optional — add core work to finish the day'}
 				</Text>
 
 				{/* Phase indicator */}
@@ -251,20 +265,101 @@ export default function DayExerciseStep({
 						<Text style={styles.phaseStepTextDone}>Compounds</Text>
 					</View>
 					<View style={styles.phaseLine} />
-					<View style={[styles.phaseStep, phase === 'accessory' && styles.phaseStepDone]}>
+					<View style={[styles.phaseStep, (phase === 'accessory' || phase === 'core') && styles.phaseStepDone]}>
 						<Ionicons
 							name='fitness-outline'
 							size={14}
-							color={phase === 'accessory' ? '#000000' : '#555555'}
+							color={(phase === 'accessory' || phase === 'core') ? '#000000' : '#555555'}
 						/>
-						<Text style={phase === 'accessory' ? styles.phaseStepTextDone : styles.phaseStepText}>
+						<Text style={(phase === 'accessory' || phase === 'core') ? styles.phaseStepTextDone : styles.phaseStepText}>
 							Accessories
+						</Text>
+					</View>
+					<View style={styles.phaseLine} />
+					<View style={[styles.phaseStep, phase === 'core' && styles.phaseStepDone]}>
+						<Ionicons
+							name='body-outline'
+							size={14}
+							color={phase === 'core' ? '#000000' : '#555555'}
+						/>
+						<Text style={phase === 'core' ? styles.phaseStepTextDone : styles.phaseStepText}>
+							Core
 						</Text>
 					</View>
 				</View>
 
-				{/* Per-muscle-group sections */}
-				{dayConfig.muscleGroups.map((mg) => {
+				{/* Core phase — single section */}
+				{phase === 'core' && (
+					<View style={styles.mgSection}>
+						<View style={styles.mgHeader}>
+							<View style={styles.mgTitleRow}>
+								<View style={[styles.mgDot, coreExercises.length > 0 && styles.mgDotMet]} />
+								<Text style={styles.mgTitle}>Core & Abs</Text>
+							</View>
+							<Text style={styles.mgSuggestion}>Optional — 0–3 exercises recommended</Text>
+						</View>
+
+						{coreExercises.length > 0 && (
+							<View style={styles.mgExercises}>
+								{coreExercises.map((item) => (
+									<View key={item.exerciseId} style={styles.exerciseCard}>
+										<View style={styles.exerciseInfo}>
+											<Text style={styles.exerciseName}>{item.name}</Text>
+										</View>
+										<View style={styles.setsRepsRow}>
+											<View style={styles.inputWrap}>
+												<TextInput
+													style={styles.input}
+													value={String(item.sets)}
+													onChangeText={(v) =>
+														updateExerciseField(item.exerciseId, 'sets', v.replace(/[^0-9]/g, ''))
+													}
+													keyboardType='number-pad'
+													maxLength={2}
+													selectTextOnFocus
+												/>
+												<Text style={styles.inputLabel}>sets</Text>
+											</View>
+											<Text style={styles.inputDivider}>×</Text>
+											<View style={styles.inputWrap}>
+												<TextInput
+													style={styles.input}
+													value={String(item.reps)}
+													onChangeText={(v) =>
+														updateExerciseField(item.exerciseId, 'reps', v.replace(/[^0-9]/g, ''))
+													}
+													keyboardType='number-pad'
+													maxLength={3}
+													selectTextOnFocus
+												/>
+												<Text style={styles.inputLabel}>reps</Text>
+											</View>
+										</View>
+										<TouchableOpacity
+											onPress={() => removeExercise(item.exerciseId)}
+											hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+											style={styles.removeBtn}
+										>
+											<Ionicons name='close-circle' size={20} color='#555555' />
+										</TouchableOpacity>
+									</View>
+								))}
+							</View>
+						)}
+
+						<TouchableOpacity
+							style={styles.addBtn}
+							onPress={() => setPickerTarget({ muscleGroup: 'Core', mode: 'core' })}
+							activeOpacity={0.8}
+						>
+							<Ionicons name='add-circle-outline' size={18} color='#AFFF2B' />
+							<Text style={styles.addBtnText}>Add core exercise</Text>
+						</TouchableOpacity>
+					</View>
+				)}
+
+				{/* Per-muscle-group sections (compound + accessory phases) */}
+				{phase !== 'core' && dayConfig.muscleGroups.map((mg) => {
 					const suggestions =
 						phase === 'compound'
 							? dayConfig.compoundSuggestions[mg]
@@ -383,6 +478,8 @@ export default function DayExerciseStep({
 					<Text style={styles.btnText}>
 						{phase === 'compound'
 							? 'Next: Accessories'
+							: phase === 'accessory'
+							? 'Next: Core & Abs'
 							: dayIndex < totalDays - 1
 							? `Set up ${nextDayLabel} Day`
 							: 'Review Program'}
@@ -396,7 +493,7 @@ export default function DayExerciseStep({
 				<ExercisePickerSheet
 					visible={!!pickerTarget}
 					muscleGroups={[pickerTarget.muscleGroup]}
-					compoundOnly={pickerTarget.mode === 'compound'}
+					compoundOnly={pickerTarget.mode === 'core' ? null : pickerTarget.mode === 'compound'}
 					alreadySelected={localExercises}
 					onSelect={handlePickerSelect}
 					onClose={closePicker}
