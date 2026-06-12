@@ -76,6 +76,16 @@ function ActiveSetCard({ set, exerciseIndex, weightUnit, updateSetField, saveSet
 function PendingSetCard({ set, exerciseIndex, updateSetField, removeSet, canRemove }) {
 	return (
 		<View style={styles.pendingCard}>
+			{canRemove && (
+				<TouchableOpacity
+					style={styles.pendingDeleteBtn}
+					onPress={() => removeSet(exerciseIndex, set.setIndex)}
+					hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}
+					activeOpacity={0.7}
+				>
+					<Text style={styles.pendingDeleteText}>✕</Text>
+				</TouchableOpacity>
+			)}
 			<TouchableOpacity
 				style={styles.pendingBtn}
 				onPress={() => updateSetField(exerciseIndex, set.setIndex, { reps: String(Math.max(0, Number(set.reps || 0) + 1)) })}
@@ -242,6 +252,20 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 		gap: 4
+	},
+	pendingDeleteBtn: {
+		position: 'absolute',
+		top: 6,
+		right: 6,
+		width: 18,
+		height: 18,
+		alignItems: 'center',
+		justifyContent: 'center'
+	},
+	pendingDeleteText: {
+		fontSize: 10,
+		color: '#666666',
+		fontFamily: FontFamily.black
 	},
 	pendingBtn: {
 		width: 36,

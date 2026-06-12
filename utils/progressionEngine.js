@@ -14,7 +14,7 @@ export function getTargetForWeek(exercise, currentWeek, cycleLength) {
 	const week = Math.max(1, currentWeek);
 	const cycle = Math.max(4, cycleLength);
 
-	const setsBonus = Math.floor(week / (cycle / 4));
+	const setsBonus = Math.floor((week - 1) / (cycle / 4));
 	const repsBonus = Math.floor((week - 1) / 2);
 
 	const targetSets = Math.min(baseSets + setsBonus, baseSets + 3);

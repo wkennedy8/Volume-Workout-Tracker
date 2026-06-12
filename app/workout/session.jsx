@@ -33,8 +33,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
 	Alert,
 	AppState,
+	Keyboard,
 	KeyboardAvoidingView,
 	Platform,
+	ScrollView,
 	StyleSheet,
 	Text,
 	TouchableOpacity,
@@ -490,6 +492,7 @@ export default function WorkoutSessionScreen() {
 							if (user?.uid) firestoreUpsertSession(user.uid, next)
 							return next
 						})
+						setActiveExerciseIndex((i) => Math.min(i, session.exercises.length - 2))
 					}
 				}
 			]
@@ -876,6 +879,30 @@ export default function WorkoutSessionScreen() {
 		)
 	}
 
+	if (session.exercises.length === 0) {
+		return (
+			<SafeAreaView style={styles.safe}>
+				<View style={styles.loadingWrap}>
+					<Text style={styles.emptyTitle}>No exercises</Text>
+					<Text style={styles.emptySubtitle}>Add at least one exercise to continue</Text>
+					<TouchableOpacity
+						style={styles.emptyAddBtn}
+						onPress={() => setAddModalVisible(true)}
+						activeOpacity={0.85}
+					>
+						<Ionicons name='add-circle-outline' size={20} color='#000000' />
+						<Text style={styles.emptyAddBtnText}>Add Exercise</Text>
+					</TouchableOpacity>
+				</View>
+				<AddExerciseModal
+					visible={addModalVisible}
+					onClose={() => setAddModalVisible(false)}
+					onAdd={handleAddExercise}
+				/>
+			</SafeAreaView>
+		)
+	}
+
 	const currentExercise = session.exercises[activeExerciseIndex]
 	const nextExercise = session.exercises[activeExerciseIndex + 1] ?? null
 
@@ -927,71 +954,81 @@ export default function WorkoutSessionScreen() {
 					</TouchableOpacity>
 				</View>
 
-				<ExerciseCard
-					exercise={currentExercise}
-					exerciseIndex={activeExerciseIndex}
-					totalExercises={session.exercises.length}
-					isCompleted={isExerciseCompleted(currentExercise)}
-					onOpenSwap={openSwapModal}
-					removeExercise={removeExercise}
-					updateSetField={updateSetField}
-					saveSet={saveSet}
-					removeSet={removeSet}
-					editSet={editSet}
-					addSet={addSet}
-					normalizeNumberText={normalizeNumberText}
-					getPreviousSet={getPreviousSet}
-					weightUnit={weightUnit}
-				/>
+				<ScrollView
+					style={styles.scrollContent}
+					contentContainerStyle={styles.scrollContentContainer}
+					keyboardShouldPersistTaps='handled'
+					keyboardDismissMode='on-drag'
+					showsVerticalScrollIndicator={false}
+				>
+					<ExerciseCard
+						exercise={currentExercise}
+						exerciseIndex={activeExerciseIndex}
+						totalExercises={session.exercises.length}
+						isCompleted={isExerciseCompleted(currentExercise)}
+						onOpenSwap={openSwapModal}
+						removeExercise={removeExercise}
+						updateSetField={updateSetField}
+						saveSet={saveSet}
+						removeSet={removeSet}
+						editSet={editSet}
+						addSet={addSet}
+						normalizeNumberText={normalizeNumberText}
+						getPreviousSet={getPreviousSet}
+						weightUnit={weightUnit}
+					/>
 
-				{/* Inline rest timer banner */}
-				{restVisible && restLabel && (
-					<View style={styles.restBanner}>
-						<Text style={styles.restBannerLabel}>REST TIMER</Text>
-						<Text style={styles.restBannerTime}>{restLabel}</Text>
-						<View style={styles.restBannerControls}>
-							<TouchableOpacity
-								style={styles.restControlBtn}
-								onPress={() => subtractRest(30)}
-								activeOpacity={0.7}
-							>
-								<Text style={styles.restControlText}>−30s</Text>
-							</TouchableOpacity>
-							<TouchableOpacity
-								style={styles.restControlBtn}
-								onPress={togglePause}
-								activeOpacity={0.7}
-							>
-								<Text style={styles.restControlText}>{restPaused ? 'Resume' : 'Pause'}</Text>
-							</TouchableOpacity>
-							<TouchableOpacity
-								style={styles.restControlBtn}
-								onPress={() => addRest(30)}
-								activeOpacity={0.7}
-							>
-								<Text style={styles.restControlText}>+30s</Text>
-							</TouchableOpacity>
-							<TouchableOpacity
-								style={[styles.restControlBtn, styles.restSkipBtn]}
-								onPress={skipRest}
-								activeOpacity={0.7}
-							>
-								<Text style={styles.restSkipText}>Skip</Text>
-							</TouchableOpacity>
+					{/* Inline rest timer banner */}
+					{restVisible && restLabel && (
+						<View style={styles.restBanner}>
+							<Text style={styles.restBannerLabel}>REST TIMER</Text>
+							<Text style={styles.restBannerTime}>{restLabel}</Text>
+							<View style={styles.restBannerControls}>
+								<TouchableOpacity
+									style={styles.restControlBtn}
+									onPress={() => subtractRest(30)}
+									activeOpacity={0.7}
+								>
+									<Text style={styles.restControlText}>−30s</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									style={styles.restControlBtn}
+									onPress={togglePause}
+									activeOpacity={0.7}
+								>
+									<Text style={styles.restControlText}>{restPaused ? 'Resume' : 'Pause'}</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									style={styles.restControlBtn}
+									onPress={() => addRest(30)}
+									activeOpacity={0.7}
+								>
+									<Text style={styles.restControlText}>+30s</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									style={[styles.restControlBtn, styles.restSkipBtn]}
+									onPress={skipRest}
+									activeOpacity={0.7}
+								>
+									<Text style={styles.restSkipText}>Skip</Text>
+								</TouchableOpacity>
+							</View>
 						</View>
-					</View>
-				)}
+					)}
 
-				{/* Up Next strip */}
-				{nextExercise && (
-					<TouchableOpacity style={styles.upNext} onPress={goToNext} activeOpacity={0.8}>
-						<View style={styles.upNextLeft}>
-							<Text style={styles.upNextLabel}>UP NEXT</Text>
-							<Text style={styles.upNextName}>{nextExercise.name}</Text>
-						</View>
-						<Ionicons name='chevron-forward' size={18} color='#666666' />
-					</TouchableOpacity>
-				)}
+					{/* Up Next strip */}
+					{nextExercise && (
+						<TouchableOpacity style={styles.upNext} onPress={goToNext} activeOpacity={0.8}>
+							<View style={styles.upNextLeft}>
+								<Text style={styles.upNextLabel}>UP NEXT</Text>
+								<Text style={styles.upNextName}>{nextExercise.name}</Text>
+							</View>
+							<Ionicons name='chevron-forward' size={18} color='#666666' />
+						</TouchableOpacity>
+					)}
+				</ScrollView>
+
+				<FinishWorkoutButton onFinish={finishWorkout} disabled={finishing} />
 
 				<SwapExerciseModal
 					visible={swapModalVisible}
@@ -1013,8 +1050,6 @@ export default function WorkoutSessionScreen() {
 					onAdd={handleAddExercise}
 				/>
 
-				<FinishWorkoutButton onFinish={finishWorkout} disabled={finishing} />
-
 				<SetLoggedOverlay
 					visible={setLoggedVisible}
 					data={setLoggedData}
@@ -1028,8 +1063,23 @@ export default function WorkoutSessionScreen() {
 const styles = StyleSheet.create({
 	safe: { flex: 1, backgroundColor: '#000000', paddingTop: 48 },
 	container: { flex: 1, paddingHorizontal: 18, paddingTop: 8 },
-	loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+	scrollContent: { flex: 1 },
+	scrollContentContainer: { paddingBottom: 16 },
+	loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
 	loadingText: { fontSize: 14, color: '#999999', fontFamily: FontFamily.black },
+	emptyTitle: { fontSize: 22, fontFamily: FontFamily.black, color: '#FFFFFF' },
+	emptySubtitle: { fontSize: 14, fontFamily: FontFamily.black, color: '#666666', marginBottom: 8 },
+	emptyAddBtn: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 8,
+		marginTop: 8,
+		paddingHorizontal: 24,
+		paddingVertical: 14,
+		borderRadius: 14,
+		backgroundColor: '#AFFF2B'
+	},
+	emptyAddBtnText: { fontSize: 15, fontFamily: FontFamily.black, color: '#000000' },
 
 	navRow: {
 		flexDirection: 'row',

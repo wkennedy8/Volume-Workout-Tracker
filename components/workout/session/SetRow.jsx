@@ -3,6 +3,7 @@ import { displayWeight, weightUnitLabel } from '@/utils/unitsUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { useRef } from 'react';
 import {
+	Keyboard,
 	Platform,
 	StyleSheet,
 	Text,
@@ -72,6 +73,8 @@ export default function SetRow({
 					placeholder='0'
 					placeholderTextColor='#9CA3AF'
 					keyboardType={Platform.OS === 'ios' ? 'decimal-pad' : 'numeric'}
+					returnKeyType='done'
+					onSubmitEditing={() => Keyboard.dismiss()}
 					style={[
 						styles.inputCell,
 						{ width: 80 },
@@ -91,6 +94,8 @@ export default function SetRow({
 					placeholder='0'
 					placeholderTextColor='#9CA3AF'
 					keyboardType='numeric'
+					returnKeyType='done'
+					onSubmitEditing={() => Keyboard.dismiss()}
 					style={[
 						styles.inputCell,
 						{ width: 80 },
